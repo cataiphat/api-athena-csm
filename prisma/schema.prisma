@@ -1,0 +1,357 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  SUPER_ADMIN
+  CS_ADMIN
+  CS_AGENT
+  CS_OPERATION
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum TicketStatus {
+  WAIT
+  PROCESS
+  CLOSED
+  DONE
+  CANCELLED
+}
+
+enum TicketType {
+  INQUIRY
+  COMPLAINT
+  REQUEST
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ChannelType {
+  EMAIL
+  FACEBOOK
+  ZALO
+  TELEGRAM
+  DIRECT_CHAT
+  PHONE
+}
+
+enum ChannelStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum SLAStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Models
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  settings    Json?    // Company-specific settings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  departments Department[]
+  users       User[]
+  customers   Customer[]
+  tickets     Ticket[]
+  channels    Channel[]
+  slas        SLA[]
+
+  @@map("companies")
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  leaderId    String?  // Department leader
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leader  User?   @relation("DepartmentLeader", fields: [leaderId], references: [id])
+  users   User[]  @relation("DepartmentMembers")
+  tickets Ticket[]
+
+  @@unique([companyId, name])
+  @@map("departments")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  password     String
+  firstName    String
+  lastName     String
+  phone        String?
+  avatar       String?
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  companyId    String
+  departmentId String?
+  settings     Json?      // User-specific settings
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  company           Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department        Department?  @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  ledDepartments    Department[] @relation("DepartmentLeader")
+  assignedTickets   Ticket[]     @relation("TicketAssignee")
+  createdTickets    Ticket[]     @relation("TicketCreator")
+  ticketComments    TicketComment[]
+  channelAgents     ChannelAgent[]
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  cif       String   @unique // Customer Identification Number
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  address   String?
+  idNumber  String?  // CCCD/CMND
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+  messages ChannelMessage[]
+
+  @@map("customers")
+}
+
+model Ticket {
+  id              String         @id @default(cuid())
+  ticketNumber    String         @unique // Format: [Source] + 6 digits
+  title           String
+  description     String
+  type            TicketType
+  priority        TicketPriority @default(MEDIUM)
+  status          TicketStatus   @default(WAIT)
+  source          String         // Source channel
+  customerId      String
+  assigneeId      String?
+  creatorId       String
+  companyId       String
+  departmentId    String
+  channelId       String?
+  slaId           String?
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  dueDate         DateTime?
+  tags            String[]       // Array of tags
+  metadata        Json?          // Additional metadata
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  customer     Customer        @relation(fields: [customerId], references: [id])
+  assignee     User?           @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  creator      User            @relation("TicketCreator", fields: [creatorId], references: [id])
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department   Department      @relation(fields: [departmentId], references: [id])
+  channel      Channel?        @relation(fields: [channelId], references: [id])
+  sla          SLA?            @relation(fields: [slaId], references: [id])
+  comments     TicketComment[]
+  attachments  TicketAttachment[]
+  slaTracking  SLATracking[]
+
+  @@map("tickets")
+}
+
+model TicketComment {
+  id        String   @id @default(cuid())
+  content   String
+  isInternal Boolean @default(false) // Internal discussion vs customer communication
+  ticketId  String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@map("ticket_comments")
+}
+
+model TicketAttachment {
+  id        String   @id @default(cuid())
+  filename  String
+  originalName String
+  mimeType  String
+  size      Int
+  path      String
+  ticketId  String
+  uploadedBy String
+  createdAt DateTime @default(now())
+
+  // Relations
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_attachments")
+}
+
+model Channel {
+  id          String        @id @default(cuid())
+  name        String
+  type        ChannelType
+  status      ChannelStatus @default(ACTIVE)
+  config      Json          // Channel-specific configuration (encrypted)
+  companyId   String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  agents  ChannelAgent[]
+  tickets Ticket[]
+  messages ChannelMessage[]
+
+  @@unique([companyId, name])
+  @@map("channels")
+}
+
+model ChannelAgent {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@map("channel_agents")
+}
+
+model ChannelMessage {
+  id          String   @id @default(cuid())
+  externalId  String?  // ID from external platform
+  content     String
+  messageType String   // text, image, file, etc.
+  direction   String   // inbound, outbound
+  channelId   String
+  customerId  String?
+  ticketId    String?
+  metadata    Json?    // Platform-specific metadata
+  createdAt   DateTime @default(now())
+
+  // Relations
+  channel  Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@map("channel_messages")
+}
+
+model SLA {
+  id                    String    @id @default(cuid())
+  name                  String
+  description           String?
+  ticketType            TicketType
+  priority              TicketPriority
+  firstResponseTimeHours Int      // Hours for first response
+  resolutionTimeHours   Int       // Hours for resolution
+  businessHoursOnly     Boolean   @default(true)
+  status                SLAStatus @default(ACTIVE)
+  companyId             String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tickets     Ticket[]
+  slaTracking SLATracking[]
+
+  @@unique([companyId, name])
+  @@map("slas")
+}
+
+model SLATracking {
+  id                   String    @id @default(cuid())
+  ticketId             String
+  slaId                String
+  firstResponseDue     DateTime
+  resolutionDue        DateTime
+  firstResponseAt      DateTime?
+  resolvedAt           DateTime?
+  firstResponseBreach  Boolean   @default(false)
+  resolutionBreach     Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sla    SLA    @relation(fields: [slaId], references: [id])
+
+  @@unique([ticketId, slaId])
+  @@map("sla_tracking")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String   // sla_violation, ticket_assigned, etc.
+  userId    String
+  ticketId  String?
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  readAt    DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // CREATE, UPDATE, DELETE
+  entity    String   // TICKET, USER, etc.
+  entityId  String
+  userId    String?
+  changes   Json?    // What changed
+  metadata  Json?    // Additional context
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
