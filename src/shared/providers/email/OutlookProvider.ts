@@ -23,8 +23,8 @@ class CustomAuthProvider implements AuthenticationProvider {
 }
 
 export class OutlookProvider implements IEmailProvider {
-  private graphClient: Client;
-  private config: EmailConfig;
+  private graphClient!: Client;
+  private config!: EmailConfig;
 
   async initialize(config: EmailConfig): Promise<void> {
     this.config = config;
@@ -44,7 +44,7 @@ export class OutlookProvider implements IEmailProvider {
       await this.graphClient.api('/me').get();
       return true;
     } catch (error) {
-      logger.error('Outlook connection test failed', { error: error.message });
+      logger.error('Outlook connection test failed', { error: (error as Error).message });
       return false;
     }
   }
@@ -65,10 +65,10 @@ export class OutlookProvider implements IEmailProvider {
         messageId: response.id,
       };
     } catch (error) {
-      logger.error('Failed to send email via Outlook', { error: error.message });
+      logger.error('Failed to send email via Outlook', { error: (error as Error).message });
       return {
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       };
     }
   }
@@ -101,7 +101,7 @@ export class OutlookProvider implements IEmailProvider {
         totalCount: response.value.length,
       };
     } catch (error) {
-      logger.error('Failed to get emails from Outlook', { error: error.message });
+      logger.error('Failed to get emails from Outlook', { error: (error as Error).message });
       return {
         messages: [],
         totalCount: 0,
@@ -117,7 +117,7 @@ export class OutlookProvider implements IEmailProvider {
 
       return this.convertFromOutlookMessage(response);
     } catch (error) {
-      logger.error('Failed to get email from Outlook', { messageId, error: error.message });
+      logger.error('Failed to get email from Outlook', { messageId, error: (error as Error).message });
       return null;
     }
   }
@@ -131,7 +131,7 @@ export class OutlookProvider implements IEmailProvider {
         });
       return true;
     } catch (error) {
-      logger.error('Failed to mark email as read', { messageId, error: error.message });
+      logger.error('Failed to mark email as read', { messageId, error: (error as Error).message });
       return false;
     }
   }
@@ -143,7 +143,7 @@ export class OutlookProvider implements IEmailProvider {
         .delete();
       return true;
     } catch (error) {
-      logger.error('Failed to delete email', { messageId, error: error.message });
+      logger.error('Failed to delete email', { messageId, error: (error as Error).message });
       return false;
     }
   }
@@ -163,8 +163,8 @@ export class OutlookProvider implements IEmailProvider {
         messageId: response.id,
       };
     } catch (error) {
-      logger.error('Failed to reply to email', { originalMessageId, error: error.message });
-      return { success: false, error: error.message };
+      logger.error('Failed to reply to email', { originalMessageId, error: (error as Error).message });
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -180,7 +180,7 @@ export class OutlookProvider implements IEmailProvider {
         name: response.displayName,
       };
     } catch (error) {
-      logger.error('Failed to get Outlook user profile', { error: error.message });
+      logger.error('Failed to get Outlook user profile', { error: (error as Error).message });
       return { email: this.config.email };
     }
   }

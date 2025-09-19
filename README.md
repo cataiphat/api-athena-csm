@@ -2,7 +2,27 @@
 
 ## 🎯 Tổng quan
 
-Athena Customer Service Management API là một hệ thống quản lý dịch vụ khách hàng toàn diện, được thiết kế để hỗ trợ các doanh nghiệp trong việc quản lý và xử lý các yêu cầu từ khách hàng thông qua nhiều kênh khác nhau.
+Athena Customer Service Management API là một hệ thống quản lý dịch vụ khách hàng toàn diện, được thiết kế để hỗ trợ các doanh nghiệp trong việc quản lý và xử lý các yêu cầu từ khách hàng thông qua nhiều kênh khác nhau. Hệ thống hỗ trợ kiến trúc multi-tenant với phân quyền 6 cấp độ và tích hợp đa nhà cung cấp dịch vụ.
+
+## ✨ **Cập nhật mới nhất**
+
+### 🔄 **Chuyển đổi Database**
+- **Chuyển từ PostgreSQL sang MySQL** để tương thích và hiệu suất tốt hơn
+- Cập nhật tất cả cấu hình Prisma và connection strings
+
+### 🎫 **Quản lý trạng thái Ticket nâng cao**
+- **Trạng thái mới**: WAIT, PROCESS, SLA_ROV (SLA Risk of Violation), SLA_POV (SLA Point of Violation), CLOSED, DONE, CANCELLED
+- **Quy trình cải tiến**: Quản lý vòng đời ticket tốt hơn với giám sát SLA
+
+### 🔐 **Hệ thống phân quyền linh hoạt**
+- **Quản lý quyền động**: Bảng Permission và Role mới cho kiểm soát truy cập linh hoạt
+- **Phân quyền chi tiết**: Hệ thống phân quyền dựa trên tài nguyên và hành động
+- **Gán vai trò**: Gán vai trò động với quyền tùy chỉnh cho từng công ty
+
+### ⚙️ **Tối ưu hóa cấu hình**
+- **Loại bỏ cấu hình Provider toàn cục**: Không còn cấu hình email/messaging provider toàn cục trong .env
+- **Quản lý kênh theo công ty**: Mỗi công ty quản lý kênh giao tiếp riêng
+- **Môi trường tối ưu**: .env sạch hơn chỉ với cài đặt ứng dụng cần thiết
 
 ## 🏗️ Kiến trúc hệ thống
 
@@ -36,6 +56,7 @@ src/
     ├── user/         # Quản lý người dùng
     ├── company/      # Quản lý công ty (multi-tenant)
     ├── department/   # Quản lý phòng ban
+    ├── team/         # Quản lý team và giờ làm việc
     ├── ticket/       # Quản lý ticket
     ├── channel/      # Quản lý kênh liên lạc
     ├── sla/          # Quản lý SLA
@@ -50,32 +71,46 @@ src/
 - Cô lập dữ liệu hoàn toàn giữa các tenant
 - Quản lý phân quyền theo từng công ty
 
-### 2. Quản lý người dùng và phân quyền
-- **4 cấp độ quyền**:
+### 2. Quản lý người dùng và phân quyền nâng cao
+- **6 cấp độ quyền**:
   - `SUPER_ADMIN`: Quản trị toàn hệ thống
-  - `CS_ADMIN`: Quản trị công ty
+  - `CS_ADMIN`: Quản trị công ty, assign quyền xem báo cáo
+  - `DEPARTMENT_HEAD`: Trưởng phòng, quản lý phòng ban
+  - `TEAM_LEADER`: Trưởng nhóm, quản lý team
   - `CS_AGENT`: Nhân viên xử lý ticket
   - `CS_OPERATION`: Nhân viên vận hành
 
-### 3. Quản lý Ticket
-- Tạo, cập nhật, phân công ticket
-- Hỗ trợ upload file đính kèm
-- Theo dõi lịch sử xử lý
+### 2.1. Quản lý Team và giờ làm việc
+- Tạo và quản lý team trong phòng ban
+- Phân công team leader và thành viên
+- Cấu hình giờ làm việc cho từng team
+- Theo dõi hiệu suất team
+- Phân quyền xem báo cáo theo team
+
+### 3. Quản lý Ticket nâng cao
+- Tạo, cập nhật, phân công ticket theo team
+- Hỗ trợ upload file đính kèm với validation
+- Theo dõi lịch sử xử lý chi tiết
 - Hệ thống comment và ghi chú nội bộ
 - Tự động tạo ticket từ tin nhắn/email đến
+- Phân công ticket theo team và working hours
+- SLA tracking với auto-escalation
 
-### 4. Multi-Provider System 🌟
+### 4. Multi-Provider System 🌟 (Per-Company Configuration)
 #### Email Providers
 - **Gmail**: OAuth2 authentication, full email management
 - **Outlook**: Microsoft Graph API integration
 - Gửi/nhận email, quản lý attachments
 - Thread và reply management
+- **Per-Company Setup**: Mỗi công ty tự cấu hình email providers
 
 #### Messaging Providers
 - **Facebook Messenger**: Page messaging, webhook support
 - **Facebook Fanpage**: Fanpage messaging với advanced features
 - **Telegram**: Bot API integration, file/media support
 - **Zalo**: Official Account API, business messaging
+- **Per-Company Channels**: Mỗi công ty tự thêm và cấu hình channels
+- **Webhook Integration**: Real-time message receiving
 
 #### Provider Features
 - **Extensible Architecture**: Dễ dàng thêm provider mới
@@ -138,29 +173,31 @@ API_VERSION="v1"
 # Sample token for development
 SAMPLE_TOKEN="sample-token-for-development"
 
-# Gmail API
+# ⚠️ NOTE: Provider configurations below are for global fallback only
+# Each company should configure their own providers through the API
+# These global settings are used when company-specific config is not available
+
+# Gmail API (Global fallback)
 GMAIL_CLIENT_ID="your-gmail-client-id"
 GMAIL_CLIENT_SECRET="your-gmail-client-secret"
 GMAIL_REDIRECT_URI="http://localhost:3000/auth/gmail/callback"
 
-# Outlook/Microsoft Graph API
+# Outlook/Microsoft Graph API (Global fallback)
 OUTLOOK_CLIENT_ID="your-outlook-client-id"
 OUTLOOK_CLIENT_SECRET="your-outlook-client-secret"
 OUTLOOK_TENANT_ID="your-outlook-tenant-id"
 OUTLOOK_REDIRECT_URI="http://localhost:3000/auth/outlook/callback"
 
-# Facebook Messenger & Fanpage
+# Facebook Messenger & Fanpage (Global fallback)
 FACEBOOK_APP_ID="your-facebook-app-id"
 FACEBOOK_APP_SECRET="your-facebook-app-secret"
-FACEBOOK_PAGE_ACCESS_TOKEN="your-facebook-page-access-token"
-FACEBOOK_FANPAGE_ACCESS_TOKEN="your-fanpage-access-token"
 FACEBOOK_VERIFY_TOKEN="your-webhook-verify-token"
 
-# Telegram Bot
+# Telegram Bot (Global fallback)
 TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 TELEGRAM_WEBHOOK_SECRET="your-webhook-secret"
 
-# Zalo Official Account
+# Zalo Official Account (Global fallback)
 ZALO_APP_ID="your-zalo-app-id"
 ZALO_APP_SECRET="your-zalo-app-secret"
 ZALO_ACCESS_TOKEN="your-zalo-access-token"
@@ -214,10 +251,13 @@ http://localhost:3000/api/v1
 - `GET /auth/check-token` - Kiểm tra token
 
 #### Users
-- `GET /users` - Danh sách người dùng
+- `GET /users/me` - Thông tin người dùng hiện tại
+- `PUT /users/me` - Cập nhật thông tin cá nhân
+- `GET /users` - Danh sách người dùng (role-based filtering)
 - `POST /users` - Tạo người dùng mới
 - `GET /users/:id` - Chi tiết người dùng
 - `PUT /users/:id` - Cập nhật người dùng
+- `PUT /users/:id/report-access` - Cập nhật quyền xem báo cáo (CS_ADMIN only)
 - `DELETE /users/:id` - Xóa người dùng
 
 #### Companies
@@ -231,6 +271,16 @@ http://localhost:3000/api/v1
 - `POST /departments` - Tạo phòng ban mới
 - `GET /departments/:id` - Chi tiết phòng ban
 - `PUT /departments/:id` - Cập nhật phòng ban
+
+#### Teams 🆕
+- `GET /teams` - Danh sách team (role-based filtering)
+- `POST /teams` - Tạo team mới
+- `GET /teams/:id` - Chi tiết team
+- `PUT /teams/:id` - Cập nhật team
+- `DELETE /teams/:id` - Xóa team
+- `POST /teams/:id/members` - Thêm thành viên vào team
+- `DELETE /teams/:id/members` - Xóa thành viên khỏi team
+- `GET /teams/stats` - Thống kê team
 
 #### Tickets
 - `GET /tickets` - Danh sách ticket
@@ -442,11 +492,19 @@ pm2 monit
 2. Thêm vào `ProviderFactory`
 3. Cập nhật validation schemas
 4. Thêm configuration options
+5. Hỗ trợ per-company configuration
+
+### Per-Company Provider Configuration
+- Mỗi công ty có thể cấu hình providers riêng
+- Không cần thay đổi code khi thêm provider mới
+- Dynamic provider loading
+- Secure credential management
 
 ### Custom Business Logic
 - Event-driven architecture
 - Plugin system ready
 - Webhook extensibility
+- Team-based workflow customization
 
 ## 🤝 Contributing
 
@@ -466,4 +524,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Athena Customer Service Management API** - Giải pháp quản lý dịch vụ khách hàng toàn diện với hỗ trợ đa kênh cho doanh nghiệp.
+**Athena Customer Service Management API** - Giải pháp quản lý dịch vụ khách hàng toàn diện với hỗ trợ đa kênh, phân quyền 6 cấp độ, và quản lý team nâng cao cho doanh nghiệp.

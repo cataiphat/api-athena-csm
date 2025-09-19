@@ -13,8 +13,8 @@ import {
 import { logger } from '@/shared/utils/logger';
 
 export class TelegramProvider implements IMessagingProvider {
-  private bot: TelegramBot;
-  private config: MessagingConfig;
+  private bot!: TelegramBot;
+  private config!: MessagingConfig;
 
   async initialize(config: MessagingConfig): Promise<void> {
     this.config = config;
@@ -33,7 +33,7 @@ export class TelegramProvider implements IMessagingProvider {
       const me = await this.bot.getMe();
       return !!me.id;
     } catch (error) {
-      logger.error('Telegram connection test failed', { error: error.message });
+      logger.error('Telegram connection test failed', { error: (error as Error).message });
       return false;
     }
   }
@@ -51,7 +51,7 @@ export class TelegramProvider implements IMessagingProvider {
           if (message.attachments && message.attachments.length > 0) {
             result = await this.bot.sendPhoto(
               message.recipientId!, 
-              message.attachments[0].url,
+              message.attachments?.[0]?.url || '',
               { caption: message.content }
             );
           }
@@ -61,7 +61,7 @@ export class TelegramProvider implements IMessagingProvider {
           if (message.attachments && message.attachments.length > 0) {
             result = await this.bot.sendDocument(
               message.recipientId!, 
-              message.attachments[0].url,
+              message.attachments?.[0]?.url || '',
               { caption: message.content }
             );
           }
@@ -71,7 +71,7 @@ export class TelegramProvider implements IMessagingProvider {
           if (message.attachments && message.attachments.length > 0) {
             result = await this.bot.sendAudio(
               message.recipientId!, 
-              message.attachments[0].url,
+              message.attachments?.[0]?.url || '',
               { caption: message.content }
             );
           }
@@ -81,7 +81,7 @@ export class TelegramProvider implements IMessagingProvider {
           if (message.attachments && message.attachments.length > 0) {
             result = await this.bot.sendVideo(
               message.recipientId!, 
-              message.attachments[0].url,
+              message.attachments?.[0]?.url || '',
               { caption: message.content }
             );
           }
@@ -108,10 +108,10 @@ export class TelegramProvider implements IMessagingProvider {
         timestamp: new Date(result.date * 1000),
       };
     } catch (error) {
-      logger.error('Failed to send Telegram message', { error: error.message });
+      logger.error('Failed to send Telegram message', { error: (error as Error).message });
       return {
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       };
     }
   }
@@ -152,7 +152,7 @@ export class TelegramProvider implements IMessagingProvider {
         },
       };
     } catch (error) {
-      logger.error('Failed to get Telegram contact', { contactId, error: error.message });
+      logger.error('Failed to get Telegram contact', { contactId, error: (error as Error).message });
       return null;
     }
   }
@@ -166,7 +166,7 @@ export class TelegramProvider implements IMessagingProvider {
       logger.info('Telegram webhook setup', { webhookUrl, success: result });
       return result;
     } catch (error) {
-      logger.error('Failed to setup Telegram webhook', { webhookUrl, error: error.message });
+      logger.error('Failed to setup Telegram webhook', { webhookUrl, error: (error as Error).message });
       return false;
     }
   }

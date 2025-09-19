@@ -16,7 +16,7 @@ export const validateRequest = (schema: ValidationSchema) => {
     if (schema.body) {
       const { error } = schema.body.validate(req.body);
       if (error) {
-        errors.push(`Body validation: ${error.details[0].message}`);
+        errors.push(`Body validation: ${error.details?.[0]?.message || 'Invalid body'}`);
       }
     }
 
@@ -24,7 +24,7 @@ export const validateRequest = (schema: ValidationSchema) => {
     if (schema.params) {
       const { error } = schema.params.validate(req.params);
       if (error) {
-        errors.push(`Params validation: ${error.details[0].message}`);
+        errors.push(`Params validation: ${error.details?.[0]?.message || 'Invalid params'}`);
       }
     }
 
@@ -32,7 +32,7 @@ export const validateRequest = (schema: ValidationSchema) => {
     if (schema.query) {
       const { error } = schema.query.validate(req.query);
       if (error) {
-        errors.push(`Query validation: ${error.details[0].message}`);
+        errors.push(`Query validation: ${error.details?.[0]?.message || 'Invalid query'}`);
       }
     }
 

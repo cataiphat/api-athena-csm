@@ -13,7 +13,7 @@ import {
 import { logger } from '@/shared/utils/logger';
 
 export class FacebookProvider implements IMessagingProvider {
-  private config: MessagingConfig;
+  private config!: MessagingConfig;
   private apiUrl = 'https://graph.facebook.com/v18.0';
 
   async initialize(config: MessagingConfig): Promise<void> {
@@ -33,7 +33,7 @@ export class FacebookProvider implements IMessagingProvider {
       });
       return response.status === 200;
     } catch (error) {
-      logger.error('Facebook connection test failed', { error: error.message });
+      logger.error('Facebook connection test failed', { error: (error as Error).message });
       return false;
     }
   }
@@ -59,10 +59,10 @@ export class FacebookProvider implements IMessagingProvider {
         timestamp: new Date(),
       };
     } catch (error) {
-      logger.error('Failed to send Facebook message', { error: error.message });
+      logger.error('Failed to send Facebook message', { error: (error as Error).message });
       return {
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       };
     }
   }
@@ -99,7 +99,7 @@ export class FacebookProvider implements IMessagingProvider {
       );
       return true;
     } catch (error) {
-      logger.error('Failed to mark Facebook message as read', { messageId, error: error.message });
+      logger.error('Failed to mark Facebook message as read', { messageId, error: (error as Error).message });
       return false;
     }
   }
@@ -119,7 +119,7 @@ export class FacebookProvider implements IMessagingProvider {
         avatar: response.data.profile_pic,
       };
     } catch (error) {
-      logger.error('Failed to get Facebook contact', { contactId, error: error.message });
+      logger.error('Failed to get Facebook contact', { contactId, error: (error as Error).message });
       return null;
     }
   }
@@ -132,7 +132,7 @@ export class FacebookProvider implements IMessagingProvider {
       logger.info('Facebook webhook setup', { webhookUrl, verifyToken });
       return true;
     } catch (error) {
-      logger.error('Invalid webhook URL', { webhookUrl, error: error.message });
+      logger.error('Invalid webhook URL', { webhookUrl, error: (error as Error).message });
       return false;
     }
   }
@@ -204,9 +204,9 @@ export class FacebookProvider implements IMessagingProvider {
         if (message.attachments && message.attachments.length > 0) {
           payload.message = {
             attachment: {
-              type: message.attachments[0].type,
+              type: message.attachments?.[0]?.type || 'file',
               payload: {
-                url: message.attachments[0].url,
+                url: message.attachments?.[0]?.url || '',
                 is_reusable: true,
               },
             },
@@ -230,7 +230,7 @@ export class FacebookProvider implements IMessagingProvider {
       const message: MessagingMessage = {
         externalId: messagingEvent.message.mid,
         content: messagingEvent.message.text || '',
-        messageType: this.determineMessageType(messagingEvent.message),
+        messageType: this.determineMessageType(messagingEvent.message) as any,
         direction: 'inbound',
         senderId,
         recipientId,

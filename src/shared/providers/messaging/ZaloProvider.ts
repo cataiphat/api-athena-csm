@@ -13,7 +13,7 @@ import {
 import { logger } from '@/shared/utils/logger';
 
 export class ZaloProvider implements IMessagingProvider {
-  private config: MessagingConfig;
+  private config!: MessagingConfig;
   private apiUrl = 'https://openapi.zalo.me/v2.0/oa';
 
   async initialize(config: MessagingConfig): Promise<void> {
@@ -30,7 +30,7 @@ export class ZaloProvider implements IMessagingProvider {
       });
       return response.status === 200 && response.data.error === 0;
     } catch (error) {
-      logger.error('Zalo connection test failed', { error: error.message });
+      logger.error('Zalo connection test failed', { error: (error as Error).message });
       return false;
     }
   }
@@ -64,10 +64,10 @@ export class ZaloProvider implements IMessagingProvider {
         };
       }
     } catch (error) {
-      logger.error('Failed to send Zalo message', { error: error.message });
+      logger.error('Failed to send Zalo message', { error: (error as Error).message });
       return {
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       };
     }
   }
@@ -103,7 +103,7 @@ export class ZaloProvider implements IMessagingProvider {
         hasMore: false,
       };
     } catch (error) {
-      logger.error('Failed to get Zalo messages', { error: error.message });
+      logger.error('Failed to get Zalo messages', { error: (error as Error).message });
       return {
         messages: [],
         hasMore: false,
@@ -152,7 +152,7 @@ export class ZaloProvider implements IMessagingProvider {
 
       return null;
     } catch (error) {
-      logger.error('Failed to get Zalo contact', { contactId, error: error.message });
+      logger.error('Failed to get Zalo contact', { contactId, error: (error as Error).message });
       return null;
     }
   }
@@ -165,7 +165,7 @@ export class ZaloProvider implements IMessagingProvider {
       logger.info('Zalo webhook setup', { webhookUrl });
       return true;
     } catch (error) {
-      logger.error('Invalid webhook URL', { webhookUrl, error: error.message });
+      logger.error('Invalid webhook URL', { webhookUrl, error: (error as Error).message });
       return false;
     }
   }
@@ -266,7 +266,7 @@ export class ZaloProvider implements IMessagingProvider {
                 template_type: 'media',
                 elements: [{
                   media_type: 'image',
-                  url: message.attachments[0].url,
+                  url: message.attachments?.[0]?.url || '',
                 }],
               },
             },
@@ -280,7 +280,7 @@ export class ZaloProvider implements IMessagingProvider {
             attachment: {
               type: 'file',
               payload: {
-                url: message.attachments[0].url,
+                url: message.attachments?.[0]?.url || '',
               },
             },
           };
@@ -300,7 +300,7 @@ export class ZaloProvider implements IMessagingProvider {
     return {
       externalId: zaloMessage.message_id,
       content: zaloMessage.message || zaloMessage.text || '',
-      messageType: this.determineMessageType(zaloMessage),
+      messageType: this.determineMessageType(zaloMessage) as any,
       direction: zaloMessage.src === 1 ? 'outbound' : 'inbound', // src: 1 = from OA, 0 = from user
       senderId: zaloMessage.from_id,
       recipientId: zaloMessage.to_id,
@@ -366,7 +366,7 @@ export class ZaloProvider implements IMessagingProvider {
 
   private determineMessageType(message: any): string {
     if (message.attachments && message.attachments.length > 0) {
-      return message.attachments[0].type;
+      return message.attachments?.[0].type;
     }
     if (message.type) {
       return message.type;

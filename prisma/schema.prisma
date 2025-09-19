@@ -14,6 +14,8 @@ datasource db {
 enum UserRole {
   SUPER_ADMIN
   CS_ADMIN
+  DEPARTMENT_HEAD
+  TEAM_LEADER
   CS_AGENT
   CS_OPERATION
 }
@@ -29,6 +31,8 @@ enum TicketStatus {
   PROCESS
   CLOSED
   DONE
+  SLA_ROV      // SLA Risk of Violation
+  SLA_POV      // SLA Point of Violation
   CANCELLED
 }
 
@@ -54,6 +58,40 @@ enum ChannelType {
   PHONE
 }
 
+enum PermissionType {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  ASSIGN
+  APPROVE
+  EXPORT
+  IMPORT
+  MANAGE
+}
+
+enum ResourceType {
+  USER
+  COMPANY
+  DEPARTMENT
+  TEAM
+  TICKET
+  CUSTOMER
+  CHANNEL
+  SLA
+  NOTIFICATION
+  REPORT
+  PERMISSION
+}
+
+enum AttachmentType {
+  IMAGE
+  DOCUMENT
+  VIDEO
+  AUDIO
+  OTHER
+}
+
 enum ChannelStatus {
   ACTIVE
   INACTIVE
@@ -76,11 +114,13 @@ model Company {
 
   // Relations
   departments Department[]
+  teams       Team[]
   users       User[]
   customers   Customer[]
   tickets     Ticket[]
   channels    Channel[]
   slas        SLA[]
+  roles       Role[]
 
   @@map("companies")
 }
@@ -90,44 +130,92 @@ model Department {
   name        String
   description String?
   companyId   String
-  leaderId    String?  // Department leader
+  headId      String?  @unique // Department head
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  leader  User?   @relation("DepartmentLeader", fields: [leaderId], references: [id])
-  users   User[]  @relation("DepartmentMembers")
-  tickets Ticket[]
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  head          User?          @relation("DepartmentHead", fields: [headId], references: [id])
+  users         User[]         @relation("DepartmentMembers")
+  teams         Team[]
+  tickets       Ticket[]
+  channelAgents ChannelAgent[] // Department channel assignments
 
   @@unique([companyId, name])
   @@map("departments")
 }
 
-model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  password     String
-  firstName    String
-  lastName     String
-  phone        String?
-  avatar       String?
-  role         UserRole
-  status       UserStatus @default(ACTIVE)
+model Team {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  departmentId String
+  leaderId     String?  @unique // Team leader
   companyId    String
-  departmentId String?
-  settings     Json?      // User-specific settings
-  lastLoginAt  DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  company           Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  department        Department?  @relation("DepartmentMembers", fields: [departmentId], references: [id])
-  ledDepartments    Department[] @relation("DepartmentLeader")
-  assignedTickets   Ticket[]     @relation("TicketAssignee")
-  createdTickets    Ticket[]     @relation("TicketCreator")
+  department    Department     @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leader        User?          @relation("TeamLeader", fields: [leaderId], references: [id])
+  members       User[]         @relation("TeamMembers")
+  workingHours  WorkingHours[]
+  tickets       Ticket[]
+  channelAgents ChannelAgent[] // Team channel assignments
+
+  @@unique([departmentId, name])
+  @@map("teams")
+}
+
+model WorkingHours {
+  id        String   @id @default(cuid())
+  teamId    String
+  dayOfWeek Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime String   // Format: "HH:mm"
+  endTime   String   // Format: "HH:mm"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, dayOfWeek])
+  @@map("working_hours")
+}
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  avatar            String?
+  status            UserStatus @default(ACTIVE)
+  companyId         String
+  departmentId      String?
+  teamId            String?
+  roleId            String     // Required role ID
+  canAccessReports  Boolean    @default(false) // CS Admin assigns report access
+  settings          Json?      // User-specific settings
+  lastLoginAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Relations
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department        Department?      @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  team              Team?            @relation("TeamMembers", fields: [teamId], references: [id])
+  role              Role             @relation(fields: [roleId], references: [id])
+  headedDepartment  Department?      @relation("DepartmentHead")
+  ledTeam           Team?            @relation("TeamLeader")
+  assignedTickets   Ticket[]         @relation("TicketAssignee")
+  createdTickets    Ticket[]         @relation("TicketCreator")
   ticketComments    TicketComment[]
+  attachments       Attachment[]     // Uploaded attachments
   channelAgents     ChannelAgent[]
   notifications     Notification[]
 
@@ -135,17 +223,18 @@ model User {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  cif       String   @unique // Customer Identification Number
-  firstName String
-  lastName  String
-  phone     String?
-  email     String?
-  address   String?
-  idNumber  String?  // CCCD/CMND
-  companyId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  cif        String   @unique // Customer Identification Number
+  externalId String?  // External ID from providers (Facebook, Telegram, etc.)
+  firstName  String
+  lastName   String
+  phone      String?
+  email      String?
+  address    String?
+  idNumber   String?  // CCCD/CMND
+  companyId  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -169,13 +258,14 @@ model Ticket {
   creatorId       String
   companyId       String
   departmentId    String
+  teamId          String?
   channelId       String?
   slaId           String?
   firstResponseAt DateTime?
   resolvedAt      DateTime?
   closedAt        DateTime?
   dueDate         DateTime?
-  tags            String[]       // Array of tags
+  tags            String?        // Comma-separated tags
   metadata        Json?          // Additional metadata
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -186,10 +276,11 @@ model Ticket {
   creator      User            @relation("TicketCreator", fields: [creatorId], references: [id])
   company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department   Department      @relation(fields: [departmentId], references: [id])
+  team         Team?           @relation(fields: [teamId], references: [id])
   channel      Channel?        @relation(fields: [channelId], references: [id])
   sla          SLA?            @relation(fields: [slaId], references: [id])
   comments     TicketComment[]
-  attachments  TicketAttachment[]
+  attachments  Attachment[]    // Ticket attachments
   slaTracking  SLATracking[]
 
   @@map("tickets")
@@ -205,28 +296,14 @@ model TicketComment {
   updatedAt DateTime @updatedAt
 
   // Relations
-  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author User   @relation(fields: [authorId], references: [id])
+  ticket      Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author      User         @relation(fields: [authorId], references: [id])
+  attachments Attachment[] // Comment attachments
 
   @@map("ticket_comments")
 }
 
-model TicketAttachment {
-  id        String   @id @default(cuid())
-  filename  String
-  originalName String
-  mimeType  String
-  size      Int
-  path      String
-  ticketId  String
-  uploadedBy String
-  createdAt DateTime @default(now())
 
-  // Relations
-  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-
-  @@map("ticket_attachments")
-}
 
 model Channel {
   id          String        @id @default(cuid())
@@ -249,16 +326,24 @@ model Channel {
 }
 
 model ChannelAgent {
-  id        String   @id @default(cuid())
-  channelId String
-  userId    String
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  channelId    String
+  userId       String?  // Individual user assignment
+  departmentId String?  // Department assignment
+  teamId       String?  // Team assignment
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel    Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  team       Team?       @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([channelId, userId])
+  @@unique([channelId, departmentId])
+  @@unique([channelId, teamId])
   @@map("channel_agents")
 }
 
@@ -324,6 +409,83 @@ model SLATracking {
   @@unique([ticketId, slaId])
   @@map("sla_tracking")
 }
+
+// Attachment Model for Tickets and Comments
+model Attachment {
+  id          String         @id @default(cuid())
+  fileName    String         // Original file name
+  filePath    String         // Storage path
+  fileSize    Int            // File size in bytes
+  mimeType    String         // MIME type
+  type        AttachmentType // Attachment category
+  ticketId    String?        // For ticket attachments
+  commentId   String?        // For comment attachments
+  uploadedBy  String         // User who uploaded
+  createdAt   DateTime       @default(now())
+
+  // Relations
+  ticket      Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  comment     TicketComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploader    User           @relation(fields: [uploadedBy], references: [id])
+
+  @@map("attachments")
+}
+
+// Permission Management Models
+model Permission {
+  id          String         @id @default(cuid())
+  name        String         // e.g., "create_ticket", "manage_users"
+  description String?
+  resource    ResourceType   // What resource this permission applies to
+  action      PermissionType // What action is allowed
+  conditions  Json?          // Additional conditions (e.g., own department only)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action, name])
+  @@map("permissions")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   // e.g., "Department Manager", "Senior Agent"
+  description String?
+  type        UserRole // Built-in role type (SUPER_ADMIN, CS_ADMIN, etc.)
+  companyId   String?  // Null for built-in roles, set for custom roles
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  users           User[]
+
+  @@unique([name, companyId])  // Unique role name per company
+
+  @@map("roles")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+  conditions   Json?  // Override or additional conditions
+  createdAt    DateTime @default(now())
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+
 
 model Notification {
   id        String   @id @default(cuid())

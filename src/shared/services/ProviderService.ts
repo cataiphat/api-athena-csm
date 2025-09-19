@@ -48,8 +48,8 @@ export class ProviderService {
 
       return result;
     } catch (error : any) {
-      logger.error('Failed to send email', { channelId, error: error.message });
-      return { success: false, error: error.message };
+      logger.error('Failed to send email', { channelId, error: (error as Error).message });
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -89,7 +89,7 @@ export class ProviderService {
 
       return result.messages;
     } catch (error: any) {
-      logger.error('Failed to receive emails', { channelId, error: error.message });
+      logger.error('Failed to receive emails', { channelId, error: (error as Error).message });
       return [];
     }
   }
@@ -134,8 +134,8 @@ export class ProviderService {
 
       return result;
     } catch (error: any) {
-      logger.error('Failed to send message', { channelId, error: error.message });
-      return { success: false, error: error.message };
+      logger.error('Failed to send message', { channelId, error: (error as Error).message });
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -185,8 +185,8 @@ export class ProviderService {
 
       return { success: true, events };
     } catch (error: any) {
-      logger.error('Failed to process webhook', { channelId, error: error.message });
-      return { success: false, error: error.message };
+      logger.error('Failed to process webhook', { channelId, error: (error as Error).message });
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -234,8 +234,8 @@ export class ProviderService {
         return await ProviderFactory.testProviderConnection('messaging', messagingConfig);
       }
     } catch (error: any) {
-      logger.error('Failed to test connection', { channelId, error: error.message });
-      return { success: false, error: error.message };
+      logger.error('Failed to test connection', { channelId, error: (error as Error).message });
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -261,7 +261,7 @@ export class ProviderService {
         },
       });
     } catch (error: any) {
-      logger.error('Failed to log email activity', { channelId, direction, error: error.message });
+      logger.error('Failed to log email activity', { channelId, direction, error: (error as Error).message });
     }
   }
 
@@ -286,7 +286,7 @@ export class ProviderService {
         },
       });
     } catch (error: any) {
-      logger.error('Failed to log message activity', { channelId, direction, error: error.message });
+      logger.error('Failed to log message activity', { channelId, direction, error: (error as Error).message });
     }
   }
 
@@ -314,8 +314,10 @@ export class ProviderService {
 
         customer = await prisma.customer.create({
           data: {
+            cif: `CIF${Date.now()}`,
             externalId: senderId,
-            name: `Customer ${senderId}`,
+            firstName: `Customer`,
+            lastName: senderId,
             companyId: channel!.companyId,
           },
         });
@@ -326,7 +328,7 @@ export class ProviderService {
         where: {
           customerId: customer.id,
           status: {
-            in: ['OPEN', 'IN_PROGRESS', 'PENDING'],
+            in: ['WAIT', 'PROCESS'],
           },
         },
       });
@@ -335,13 +337,18 @@ export class ProviderService {
         // Create new ticket
         ticket = await prisma.ticket.create({
           data: {
-            title: `Message from ${customer.name}`,
+            ticketNumber: `MSG${Date.now().toString().slice(-6)}`,
+            title: `Message from ${customer.firstName} ${customer.lastName}`,
             description: message.content,
+            type: 'INQUIRY',
             priority: 'MEDIUM',
-            status: 'OPEN',
+            status: 'WAIT',
+            source: 'CHANNEL',
             customerId: customer.id,
             companyId: customer.companyId,
             channelId,
+            creatorId: customer.id, // Temporary - should be system user
+            departmentId: '', // Will be assigned later
           },
         });
       }
@@ -357,7 +364,7 @@ export class ProviderService {
       });
 
     } catch (error) {
-      logger.error('Failed to create ticket from message', { channelId, senderId, error: error.message });
+      logger.error('Failed to create ticket from message', { channelId, senderId, error: (error as Error).message });
     }
   }
 }
