@@ -20,13 +20,7 @@ export class DepartmentController {
       
       let whereClause: any = {};
 
-      // Role-based access control
-      if (req.user.role === UserRole.SUPER_ADMIN) {
-        // Super admin can see all departments
-      } else {
-        // Others can only see departments in their company
-        whereClause.companyId = req.user.companyId;
-      }
+      // Role-based access control - in single-tenant, all authenticated users can see all departments
 
       if (search) {
         whereClause.OR = [
@@ -42,10 +36,7 @@ export class DepartmentController {
           take: limit,
           orderBy: { [sortBy]: sortOrder },
           include: {
-            company: {
-              select: { id: true, name: true },
-            },
-            leader: {
+            head: {
               select: { id: true, firstName: true, lastName: true, email: true },
             },
             _count: {
@@ -85,10 +76,7 @@ export class DepartmentController {
       const department = await prisma.department.findUnique({
         where: { id },
         include: {
-          company: {
-            select: { id: true, name: true },
-          },
-          leader: {
+          head: {
             select: { id: true, firstName: true, lastName: true, email: true, phone: true },
           },
           users: {
@@ -112,10 +100,7 @@ export class DepartmentController {
         throw new NotFoundError('Department not found');
       }
 
-      // Access control
-      if (req.user.role !== UserRole.SUPER_ADMIN && req.user.companyId !== department.companyId) {
-        throw new ForbiddenError('Access denied to this department');
-      }
+      // In single-tenant architecture, all authenticated users have access
 
       res.status(200).json({
         success: true,
@@ -138,38 +123,34 @@ export class DepartmentController {
         throw new ForbiddenError('Insufficient permissions');
       }
 
-      const { name, description, companyId, leaderId } = req.body;
+      const { name, description, headId } = req.body;
 
-      // Validate company access
-      if (req.user.role === UserRole.CS_ADMIN && companyId !== req.user.companyId) {
-        throw new ForbiddenError('Cannot create department for different company');
-      }
-
-      // Check if department name already exists in the company
+      // Check if department name already exists
       const existingDepartment = await prisma.department.findFirst({
-        where: { name, companyId },
+        where: { name },
       });
 
       if (existingDepartment) {
-        throw new ValidationError('Department name already exists in this company');
+        throw new ValidationError('Department name already exists');
       }
 
-      // Validate leader if provided
-      if (leaderId) {
-        const leader = await prisma.user.findUnique({
-          where: { id: leaderId },
+      // Validate head if provided
+      if (headId) {
+        const head = await prisma.user.findUnique({
+          where: { id: headId },
+          include: {
+            role: {
+              select: { type: true },
+            },
+          },
         });
 
-        if (!leader) {
-          throw new ValidationError('Leader not found');
+        if (!head) {
+          throw new ValidationError('Department head not found');
         }
 
-        if (leader.companyId !== companyId) {
-          throw new ValidationError('Leader must belong to the same company');
-        }
-
-        if (leader.role !== UserRole.CS_ADMIN && leader.role !== UserRole.CS_AGENT) {
-          throw new ValidationError('Leader must be CS Admin or CS Agent');
+        if (head.role.type !== UserRole.CS_ADMIN && head.role.type !== UserRole.DEPARTMENT_HEAD) {
+          throw new ValidationError('Department head must be CS Admin or Department Head');
         }
       }
 
@@ -177,14 +158,10 @@ export class DepartmentController {
         data: {
           name,
           description,
-          companyId,
-          leaderId,
+          headId,
         },
         include: {
-          company: {
-            select: { id: true, name: true },
-          },
-          leader: {
+          head: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
           _count: {
@@ -196,7 +173,6 @@ export class DepartmentController {
       logger.info('Department created successfully', {
         departmentId: newDepartment.id,
         departmentName: newDepartment.name,
-        companyId,
         createdBy: req.user.id,
       });
 
@@ -227,12 +203,7 @@ export class DepartmentController {
         throw new NotFoundError('Department not found');
       }
 
-      // Access control
-      if (req.user.role !== UserRole.SUPER_ADMIN && req.user.companyId !== existingDepartment.companyId) {
-        throw new ForbiddenError('Access denied to this department');
-      }
-
-      // Only Super Admin and CS Admin can update departments
+      // Single-tenant: simplified access control
       if (req.user.role !== UserRole.SUPER_ADMIN && req.user.role !== UserRole.CS_ADMIN) {
         throw new ForbiddenError('Insufficient permissions');
       }
@@ -240,15 +211,14 @@ export class DepartmentController {
       // Check if new name conflicts with existing department
       if (name && name !== existingDepartment.name) {
         const nameConflict = await prisma.department.findFirst({
-          where: { 
-            name, 
-            companyId: existingDepartment.companyId,
+          where: {
+            name,
             id: { not: id },
           },
         });
 
         if (nameConflict) {
-          throw new ValidationError('Department name already exists in this company');
+          throw new ValidationError('Department name already exists');
         }
       }
 
@@ -256,18 +226,20 @@ export class DepartmentController {
       if (leaderId) {
         const leader = await prisma.user.findUnique({
           where: { id: leaderId },
+          include: {
+            role: {
+              select: { type: true },
+            },
+          },
         });
 
         if (!leader) {
           throw new ValidationError('Leader not found');
         }
 
-        if (leader.companyId !== existingDepartment.companyId) {
-          throw new ValidationError('Leader must belong to the same company');
-        }
-
-        if (leader.role !== UserRole.CS_ADMIN && leader.role !== UserRole.CS_AGENT) {
-          throw new ValidationError('Leader must be CS Admin or CS Agent');
+        // Single-tenant: check role type from relationship
+        if (leader.role.type !== UserRole.CS_ADMIN && leader.role.type !== UserRole.DEPARTMENT_HEAD) {
+          throw new ValidationError('Leader must be CS Admin or Department Head');
         }
       }
 
@@ -279,10 +251,7 @@ export class DepartmentController {
           ...(leaderId !== undefined && { leaderId }),
         },
         include: {
-          company: {
-            select: { id: true, name: true },
-          },
-          leader: {
+          head: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
           _count: {
@@ -332,10 +301,7 @@ export class DepartmentController {
         throw new NotFoundError('Department not found');
       }
 
-      // Access control
-      if (req.user.role === UserRole.CS_ADMIN && req.user.companyId !== existingDepartment.companyId) {
-        throw new ForbiddenError('Cannot delete department from different company');
-      }
+      // Single-tenant: all admins can delete departments
 
       // Check if department has users or tickets
       if (existingDepartment._count.users > 0) {

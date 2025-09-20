@@ -34,11 +34,10 @@ export class ProviderController {
         throw new NotFoundError('Channel not found');
       }
 
-      // Check permissions
-      const hasAccess = 
+      // Single-tenant: simplified permissions
+      const hasAccess =
         req.user.role === UserRole.SUPER_ADMIN ||
-        (req.user.role === UserRole.CS_ADMIN && channel.companyId === req.user.companyId) ||
-        (channel.companyId === req.user.companyId);
+        req.user.role === UserRole.CS_ADMIN;
 
       if (!hasAccess) {
         throw new ForbiddenError('Access denied to this channel');
@@ -94,11 +93,10 @@ export class ProviderController {
         throw new NotFoundError('Channel not found');
       }
 
-      // Check permissions
-      const hasAccess = 
+      // Single-tenant: simplified permissions
+      const hasAccess =
         req.user.role === UserRole.SUPER_ADMIN ||
-        (req.user.role === UserRole.CS_ADMIN && channel.companyId === req.user.companyId) ||
-        (channel.companyId === req.user.companyId);
+        req.user.role === UserRole.CS_ADMIN;
 
       if (!hasAccess) {
         throw new ForbiddenError('Access denied to this channel');
@@ -149,11 +147,10 @@ export class ProviderController {
         throw new NotFoundError('Channel not found');
       }
 
-      // Check permissions
-      const hasAccess = 
+      // Single-tenant: simplified permissions
+      const hasAccess =
         req.user.role === UserRole.SUPER_ADMIN ||
-        (req.user.role === UserRole.CS_ADMIN && channel.companyId === req.user.companyId) ||
-        (channel.companyId === req.user.companyId);
+        req.user.role === UserRole.CS_ADMIN;
 
       if (!hasAccess) {
         throw new ForbiddenError('Access denied to this channel');
@@ -247,10 +244,10 @@ export class ProviderController {
 
       if (mode === 'subscribe' && token === config.verifyToken) {
         logger.info('Webhook verified successfully', { channelId });
-        res.status(200).send(challenge);
+        return res.status(200).send(challenge);
       } else {
         logger.warn('Webhook verification failed', { channelId, mode, token });
-        res.status(403).send('Forbidden');
+        return res.status(403).send('Forbidden');
       }
     } catch (error) {
       next(error);
@@ -281,11 +278,10 @@ export class ProviderController {
         throw new NotFoundError('Channel not found');
       }
 
-      // Check permissions
-      const hasAccess = 
+      // Single-tenant: simplified permissions
+      const hasAccess =
         req.user.role === UserRole.SUPER_ADMIN ||
-        (req.user.role === UserRole.CS_ADMIN && channel.companyId === req.user.companyId) ||
-        (channel.companyId === req.user.companyId);
+        req.user.role === UserRole.CS_ADMIN;
 
       if (!hasAccess) {
         throw new ForbiddenError('Access denied to this channel');
@@ -306,7 +302,7 @@ export class ProviderController {
   /**
    * Get supported providers
    */
-  static async getSupportedProviders(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  static async getSupportedProviders(_req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const emailProviders = ProviderFactory.getSupportedEmailProviders();
       const messagingProviders = ProviderFactory.getSupportedMessagingProviders();

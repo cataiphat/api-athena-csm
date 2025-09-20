@@ -6,30 +6,14 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seeding...');
 
-  // Create a sample company
-  const company = await prisma.company.create({
-    data: {
-      name: 'AthenaFS Demo Company',
-      description: 'Demo company for testing CMS system',
-      settings: {
-        timezone: 'Asia/Ho_Chi_Minh',
-        businessHours: {
-          start: '08:00',
-          end: '17:00',
-          days: [1, 2, 3, 4, 5], // Monday to Friday
-        },
-      },
-    },
-  });
-
-  console.log('✅ Created company:', company.name);
+  // Single-tenant architecture - no company needed
+  console.log('✅ Single-tenant setup - no company creation needed');
 
   // Create departments
   const cskh = await prisma.department.create({
     data: {
       name: 'Chăm sóc khách hàng',
       description: 'Phòng chăm sóc khách hàng',
-      companyId: company.id,
     },
   });
 
@@ -37,7 +21,6 @@ async function main() {
     data: {
       name: 'Kỹ thuật',
       description: 'Phòng kỹ thuật',
-      companyId: company.id,
     },
   });
 

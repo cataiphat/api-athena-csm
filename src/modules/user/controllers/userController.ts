@@ -23,14 +23,15 @@ export class UserController {
       let whereClause: any = {};
 
       // Role-based access control
-      if (req.user.role === UserRole.SUPER_ADMIN) {
-        // Super admin can see all users
-      } else if (req.user.role === UserRole.CS_ADMIN) {
-        // CS Admin can only see users in their company
-        whereClause.companyId = req.user.companyId;
+      if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.CS_ADMIN) {
+        // Super admin and CS Admin can see all users
+      } else if (req.user.role === UserRole.DEPARTMENT_HEAD) {
+        // Department head can only see users in their department
+        if (req.user.departmentId) {
+          whereClause.departmentId = req.user.departmentId;
+        }
       } else {
         // Other roles can only see users in their department
-        whereClause.companyId = req.user.companyId;
         if (req.user.departmentId) {
           whereClause.departmentId = req.user.departmentId;
         }
@@ -63,22 +64,9 @@ export class UserController {
           skip,
           take: limit,
           orderBy: { [sortBy]: sortOrder },
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            avatar: true,
-            role: true,
-            status: true,
-            companyId: true,
-            departmentId: true,
-            lastLoginAt: true,
-            createdAt: true,
-            updatedAt: true,
-            company: {
-              select: { id: true, name: true },
+          include: {
+            role: {
+              select: { id: true, name: true, type: true },
             },
             department: {
               select: { id: true, name: true },
@@ -116,23 +104,9 @@ export class UserController {
 
       const user = await prisma.user.findUnique({
         where: { id },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          avatar: true,
-          role: true,
-          status: true,
-          companyId: true,
-          departmentId: true,
-          settings: true,
-          lastLoginAt: true,
-          createdAt: true,
-          updatedAt: true,
-          company: {
-            select: { id: true, name: true },
+        include: {
+          role: {
+            select: { id: true, name: true, type: true },
           },
           department: {
             select: { id: true, name: true },
@@ -150,11 +124,7 @@ export class UserController {
       }
 
       // Check access permissions
-      if (req.user.role !== UserRole.SUPER_ADMIN) {
-        if (req.user.companyId !== user.companyId) {
-          throw new ForbiddenError('Access denied');
-        }
-        
+      if (req.user.role !== UserRole.SUPER_ADMIN && req.user.role !== UserRole.CS_ADMIN) {
         if (req.user.role === UserRole.CS_AGENT && req.user.departmentId !== user.departmentId) {
           throw new ForbiddenError('Access denied');
         }
@@ -187,16 +157,10 @@ export class UserController {
         firstName,
         lastName,
         phone,
-        role,
-        companyId,
+        roleId,
         departmentId,
         settings,
       } = req.body;
-
-      // Validate company access
-      if (req.user.role === UserRole.CS_ADMIN && companyId !== req.user.companyId) {
-        throw new ForbiddenError('Cannot create user for different company');
-      }
 
       // Check if email already exists
       const existingUser = await prisma.user.findUnique({
@@ -217,25 +181,14 @@ export class UserController {
           firstName,
           lastName,
           phone,
-          role,
+          roleId,
           status: UserStatus.ACTIVE,
-          companyId,
           departmentId,
           settings,
         },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          role: true,
-          status: true,
-          companyId: true,
-          departmentId: true,
-          createdAt: true,
-          company: {
-            select: { id: true, name: true },
+        include: {
+          role: {
+            select: { id: true, name: true, type: true },
           },
           department: {
             select: { id: true, name: true },
@@ -287,10 +240,10 @@ export class UserController {
         throw new NotFoundError('User not found');
       }
 
-      // Permission checks
-      const canUpdate = 
+      // Permission checks - simplified for single-tenant
+      const canUpdate =
         req.user.role === UserRole.SUPER_ADMIN ||
-        (req.user.role === UserRole.CS_ADMIN && existingUser.companyId === req.user.companyId) ||
+        req.user.role === UserRole.CS_ADMIN ||
         (req.user.id === id); // Users can update themselves
 
       if (!canUpdate) {
@@ -321,21 +274,9 @@ export class UserController {
       const updatedUser = await prisma.user.update({
         where: { id },
         data: updateData,
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          avatar: true,
-          role: true,
-          status: true,
-          companyId: true,
-          departmentId: true,
-          settings: true,
-          updatedAt: true,
-          company: {
-            select: { id: true, name: true },
+        include: {
+          role: {
+            select: { id: true, name: true, type: true },
           },
           department: {
             select: { id: true, name: true },
@@ -379,10 +320,7 @@ export class UserController {
         throw new NotFoundError('User not found');
       }
 
-      // CS Admin can only delete users in their company
-      if (req.user.role === UserRole.CS_ADMIN && existingUser.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Cannot delete user from different company');
-      }
+      // CS Admin can delete users (single-tenant, no company restriction needed)
 
       // Cannot delete yourself
       if (existingUser.id === req.user.id) {

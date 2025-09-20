@@ -2,7 +2,7 @@
 
 ## 🎯 Tổng quan
 
-Athena Customer Service Management API là một hệ thống quản lý dịch vụ khách hàng toàn diện, được thiết kế để hỗ trợ các doanh nghiệp trong việc quản lý và xử lý các yêu cầu từ khách hàng thông qua nhiều kênh khác nhau. Hệ thống hỗ trợ kiến trúc multi-tenant với phân quyền 6 cấp độ và tích hợp đa nhà cung cấp dịch vụ.
+Athena Customer Service Management API là một hệ thống quản lý dịch vụ khách hàng toàn diện, được thiết kế để hỗ trợ doanh nghiệp trong việc quản lý và xử lý các yêu cầu từ khách hàng thông qua nhiều kênh khác nhau. Hệ thống được thiết kế theo kiến trúc single-tenant với phân quyền 6 cấp độ và tích hợp đa nhà cung cấp dịch vụ.
 
 ## ✨ **Cập nhật mới nhất**
 
@@ -17,12 +17,12 @@ Athena Customer Service Management API là một hệ thống quản lý dịch 
 ### 🔐 **Hệ thống phân quyền linh hoạt**
 - **Quản lý quyền động**: Bảng Permission và Role mới cho kiểm soát truy cập linh hoạt
 - **Phân quyền chi tiết**: Hệ thống phân quyền dựa trên tài nguyên và hành động
-- **Gán vai trò**: Gán vai trò động với quyền tùy chỉnh cho từng công ty
+- **Gán vai trò**: Gán vai trò động với quyền tùy chỉnh
 
 ### ⚙️ **Tối ưu hóa cấu hình**
-- **Loại bỏ cấu hình Provider toàn cục**: Không còn cấu hình email/messaging provider toàn cục trong .env
-- **Quản lý kênh theo công ty**: Mỗi công ty quản lý kênh giao tiếp riêng
-- **Môi trường tối ưu**: .env sạch hơn chỉ với cài đặt ứng dụng cần thiết
+- **Cấu hình Provider tập trung**: Cấu hình email/messaging provider tập trung trong .env
+- **Quản lý kênh thống nhất**: Quản lý tất cả kênh giao tiếp trong một hệ thống
+- **Môi trường đơn giản**: .env được tối ưu cho single-tenant architecture
 
 ## 🏗️ Kiến trúc hệ thống
 
@@ -54,7 +54,7 @@ src/
 └── modules/          # Các module chức năng
     ├── auth/         # Xác thực và phân quyền
     ├── user/         # Quản lý người dùng
-    ├── company/      # Quản lý công ty (multi-tenant)
+
     ├── department/   # Quản lý phòng ban
     ├── team/         # Quản lý team và giờ làm việc
     ├── ticket/       # Quản lý ticket
@@ -66,15 +66,15 @@ src/
 
 ## 🚀 Tính năng chính
 
-### 1. Multi-tenant Architecture
-- Hỗ trợ nhiều công ty trên cùng một hệ thống
-- Cô lập dữ liệu hoàn toàn giữa các tenant
-- Quản lý phân quyền theo từng công ty
+### 1. Single-tenant Architecture
+- Hệ thống được thiết kế dành riêng cho một doanh nghiệp
+- Dữ liệu và cấu hình tập trung, không cần cô lập tenant
+- Quản lý phân quyền theo vai trò và phòng ban
 
 ### 2. Quản lý người dùng và phân quyền nâng cao
 - **6 cấp độ quyền**:
   - `SUPER_ADMIN`: Quản trị toàn hệ thống
-  - `CS_ADMIN`: Quản trị công ty, assign quyền xem báo cáo
+  - `CS_ADMIN`: Quản trị hệ thống, assign quyền xem báo cáo
   - `DEPARTMENT_HEAD`: Trưởng phòng, quản lý phòng ban
   - `TEAM_LEADER`: Trưởng nhóm, quản lý team
   - `CS_AGENT`: Nhân viên xử lý ticket
@@ -96,20 +96,20 @@ src/
 - Phân công ticket theo team và working hours
 - SLA tracking với auto-escalation
 
-### 4. Multi-Provider System 🌟 (Per-Company Configuration)
+### 4. Multi-Provider System 🌟 (Centralized Configuration)
 #### Email Providers
 - **Gmail**: OAuth2 authentication, full email management
 - **Outlook**: Microsoft Graph API integration
 - Gửi/nhận email, quản lý attachments
 - Thread và reply management
-- **Per-Company Setup**: Mỗi công ty tự cấu hình email providers
+- **Centralized Setup**: Cấu hình email providers tập trung
 
 #### Messaging Providers
 - **Facebook Messenger**: Page messaging, webhook support
 - **Facebook Fanpage**: Fanpage messaging với advanced features
 - **Telegram**: Bot API integration, file/media support
 - **Zalo**: Official Account API, business messaging
-- **Per-Company Channels**: Mỗi công ty tự thêm và cấu hình channels
+- **Unified Channels**: Quản lý tất cả channels trong một hệ thống
 - **Webhook Integration**: Real-time message receiving
 
 #### Provider Features
@@ -173,31 +173,30 @@ API_VERSION="v1"
 # Sample token for development
 SAMPLE_TOKEN="sample-token-for-development"
 
-# ⚠️ NOTE: Provider configurations below are for global fallback only
-# Each company should configure their own providers through the API
-# These global settings are used when company-specific config is not available
+# Provider configurations for the system
+# These settings are used for all provider integrations
 
-# Gmail API (Global fallback)
+# Gmail API
 GMAIL_CLIENT_ID="your-gmail-client-id"
 GMAIL_CLIENT_SECRET="your-gmail-client-secret"
 GMAIL_REDIRECT_URI="http://localhost:3000/auth/gmail/callback"
 
-# Outlook/Microsoft Graph API (Global fallback)
+# Outlook/Microsoft Graph API
 OUTLOOK_CLIENT_ID="your-outlook-client-id"
 OUTLOOK_CLIENT_SECRET="your-outlook-client-secret"
 OUTLOOK_TENANT_ID="your-outlook-tenant-id"
 OUTLOOK_REDIRECT_URI="http://localhost:3000/auth/outlook/callback"
 
-# Facebook Messenger & Fanpage (Global fallback)
+# Facebook Messenger & Fanpage
 FACEBOOK_APP_ID="your-facebook-app-id"
 FACEBOOK_APP_SECRET="your-facebook-app-secret"
 FACEBOOK_VERIFY_TOKEN="your-webhook-verify-token"
 
-# Telegram Bot (Global fallback)
+# Telegram Bot
 TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 TELEGRAM_WEBHOOK_SECRET="your-webhook-secret"
 
-# Zalo Official Account (Global fallback)
+# Zalo Official Account
 ZALO_APP_ID="your-zalo-app-id"
 ZALO_APP_SECRET="your-zalo-app-secret"
 ZALO_ACCESS_TOKEN="your-zalo-access-token"
@@ -260,11 +259,7 @@ http://localhost:3000/api/v1
 - `PUT /users/:id/report-access` - Cập nhật quyền xem báo cáo (CS_ADMIN only)
 - `DELETE /users/:id` - Xóa người dùng
 
-#### Companies
-- `GET /companies` - Danh sách công ty
-- `POST /companies` - Tạo công ty mới
-- `GET /companies/:id` - Chi tiết công ty
-- `PUT /companies/:id` - Cập nhật công ty
+
 
 #### Departments
 - `GET /departments` - Danh sách phòng ban
@@ -360,7 +355,7 @@ http://localhost:3000/api/v1
 ### Authentication & Authorization
 - JWT-based authentication với refresh token
 - Role-based access control (RBAC)
-- Multi-tenant data isolation
+- Department và team-based access control
 
 ### Data Protection
 - Input validation với Joi
@@ -494,8 +489,8 @@ pm2 monit
 4. Thêm configuration options
 5. Hỗ trợ per-company configuration
 
-### Per-Company Provider Configuration
-- Mỗi công ty có thể cấu hình providers riêng
+### Centralized Provider Configuration
+- Cấu hình providers tập trung cho toàn hệ thống
 - Không cần thay đổi code khi thêm provider mới
 - Dynamic provider loading
 - Secure credential management

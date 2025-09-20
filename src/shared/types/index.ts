@@ -7,7 +7,6 @@ export interface AuthenticatedUser {
   firstName: string;
   lastName: string;
   role: UserRole;
-  companyId: string;
   departmentId?: string | undefined;
 }
 
@@ -50,7 +49,6 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: UserRole;
-  companyId: string;
   iat?: number;
   exp?: number;
 }

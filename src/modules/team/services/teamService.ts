@@ -6,15 +6,15 @@ import { logger } from '../../../shared/utils/logger';
 const prisma = new PrismaClient();
 
 export class TeamService {
-  static async createTeam(data: CreateTeamRequest, companyId: string, userId: string): Promise<TeamResponse> {
+  static async createTeam(data: CreateTeamRequest, userId: string, role: UserRole): Promise<TeamResponse> {
     try {
-      // Verify department exists and belongs to company
+      // Verify department exists (single-tenant)
       const department = await prisma.department.findFirst({
-        where: { id: data.departmentId, companyId }
+        where: { id: data.departmentId }
       });
 
       if (!department) {
-        throw new AppError('Department not found or does not belong to your company', 404);
+        throw new AppError('Department not found', 404);
       }
 
       // Check if team name already exists in department
@@ -29,13 +29,17 @@ export class TeamService {
         throw new AppError('Team name already exists in this department', 400);
       }
 
-      // Verify leader exists and belongs to company
+      // Verify leader exists (single-tenant)
       if (data.leaderId) {
         const leader = await prisma.user.findFirst({
-          where: { 
-            id: data.leaderId, 
-            companyId,
-            role: { in: ['TEAM_LEADER', 'DEPARTMENT_HEAD', 'CS_ADMIN'] }
+          where: {
+            id: data.leaderId,
+            role: {
+              type: { in: ['TEAM_LEADER', 'DEPARTMENT_HEAD', 'CS_ADMIN'] }
+            }
+          },
+          include: {
+            role: true
           }
         });
 
@@ -44,12 +48,11 @@ export class TeamService {
         }
       }
 
-      // Verify members exist and belong to company
+      // Verify members exist (single-tenant)
       if (data.memberIds && data.memberIds.length > 0) {
         const members = await prisma.user.findMany({
-          where: { 
-            id: { in: data.memberIds }, 
-            companyId,
+          where: {
+            id: { in: data.memberIds },
             teamId: null // Members should not already be in another team
           }
         });
@@ -66,7 +69,6 @@ export class TeamService {
           description: data.description,
           departmentId: data.departmentId,
           leaderId: data.leaderId,
-          companyId,
           workingHours: data.workingHours ? {
             create: data.workingHours.map(wh => ({
               dayOfWeek: wh.dayOfWeek,
@@ -101,8 +103,7 @@ export class TeamService {
   }
 
   static async getTeams(
-    companyId: string, 
-    userId: string, 
+    userId: string,
     userRole: UserRole,
     query: any
   ): Promise<TeamListResponse> {
@@ -110,8 +111,8 @@ export class TeamService {
       const { page = 1, limit = 10, search, departmentId, leaderId, hasWorkingHours, sortBy = 'createdAt', sortOrder = 'desc' } = query;
       const skip = (page - 1) * limit;
 
-      // Build where clause based on user role
-      let whereClause: any = { companyId };
+      // Build where clause (single-tenant)
+      let whereClause: any = {};
 
       // Role-based filtering
       if (userRole === 'DEPARTMENT_HEAD') {

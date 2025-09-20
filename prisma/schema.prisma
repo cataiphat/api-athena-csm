@@ -72,7 +72,6 @@ enum PermissionType {
 
 enum ResourceType {
   USER
-  COMPANY
   DEPARTMENT
   TEAM
   TICKET
@@ -104,45 +103,23 @@ enum SLAStatus {
 }
 
 // Models
-model Company {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  settings    Json?    // Company-specific settings
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  departments Department[]
-  teams       Team[]
-  users       User[]
-  customers   Customer[]
-  tickets     Ticket[]
-  channels    Channel[]
-  slas        SLA[]
-  roles       Role[]
-
-  @@map("companies")
-}
 
 model Department {
   id          String   @id @default(cuid())
-  name        String
+  name        String   @unique
   description String?
-  companyId   String
   headId      String?  @unique // Department head
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   head          User?          @relation("DepartmentHead", fields: [headId], references: [id])
   users         User[]         @relation("DepartmentMembers")
   teams         Team[]
   tickets       Ticket[]
   channelAgents ChannelAgent[] // Department channel assignments
 
-  @@unique([companyId, name])
   @@map("departments")
 }
 
@@ -152,13 +129,12 @@ model Team {
   description  String?
   departmentId String
   leaderId     String?  @unique // Team leader
-  companyId    String
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   // Relations
   department    Department     @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   leader        User?          @relation("TeamLeader", fields: [leaderId], references: [id])
   members       User[]         @relation("TeamMembers")
   workingHours  WorkingHours[]
@@ -195,7 +171,6 @@ model User {
   phone             String?
   avatar            String?
   status            UserStatus @default(ACTIVE)
-  companyId         String
   departmentId      String?
   teamId            String?
   roleId            String     // Required role ID
@@ -206,7 +181,6 @@ model User {
   updatedAt         DateTime   @updatedAt
 
   // Relations
-  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department        Department?      @relation("DepartmentMembers", fields: [departmentId], references: [id])
   team              Team?            @relation("TeamMembers", fields: [teamId], references: [id])
   role              Role             @relation(fields: [roleId], references: [id])
@@ -232,12 +206,10 @@ model Customer {
   email      String?
   address    String?
   idNumber   String?  // CCCD/CMND
-  companyId  String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   // Relations
-  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   tickets Ticket[]
   messages ChannelMessage[]
 
@@ -256,7 +228,6 @@ model Ticket {
   customerId      String
   assigneeId      String?
   creatorId       String
-  companyId       String
   departmentId    String
   teamId          String?
   channelId       String?
@@ -274,7 +245,6 @@ model Ticket {
   customer     Customer        @relation(fields: [customerId], references: [id])
   assignee     User?           @relation("TicketAssignee", fields: [assigneeId], references: [id])
   creator      User            @relation("TicketCreator", fields: [creatorId], references: [id])
-  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   department   Department      @relation(fields: [departmentId], references: [id])
   team         Team?           @relation(fields: [teamId], references: [id])
   channel      Channel?        @relation(fields: [channelId], references: [id])
@@ -307,21 +277,18 @@ model TicketComment {
 
 model Channel {
   id          String        @id @default(cuid())
-  name        String
+  name        String        @unique
   type        ChannelType
   status      ChannelStatus @default(ACTIVE)
   config      Json          // Channel-specific configuration (encrypted)
-  companyId   String
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   // Relations
-  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   agents  ChannelAgent[]
   tickets Ticket[]
   messages ChannelMessage[]
 
-  @@unique([companyId, name])
   @@map("channels")
 }
 
@@ -368,7 +335,7 @@ model ChannelMessage {
 
 model SLA {
   id                    String    @id @default(cuid())
-  name                  String
+  name                  String    @unique
   description           String?
   ticketType            TicketType
   priority              TicketPriority
@@ -376,16 +343,13 @@ model SLA {
   resolutionTimeHours   Int       // Hours for resolution
   businessHoursOnly     Boolean   @default(true)
   status                SLAStatus @default(ACTIVE)
-  companyId             String
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
   // Relations
-  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   tickets     Ticket[]
   slaTracking SLATracking[]
 
-  @@unique([companyId, name])
   @@map("slas")
 }
 
@@ -452,20 +416,16 @@ model Permission {
 
 model Role {
   id          String   @id @default(cuid())
-  name        String   // e.g., "Department Manager", "Senior Agent"
+  name        String   @unique // e.g., "Department Manager", "Senior Agent"
   description String?
   type        UserRole // Built-in role type (SUPER_ADMIN, CS_ADMIN, etc.)
-  companyId   String?  // Null for built-in roles, set for custom roles
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
-  company         Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   rolePermissions RolePermission[]
   users           User[]
-
-  @@unique([name, companyId])  // Unique role name per company
 
   @@map("roles")
 }

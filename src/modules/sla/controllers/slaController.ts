@@ -20,13 +20,7 @@ export class SLAController {
       
       let whereClause: any = {};
 
-      // Role-based access control
-      if (req.user.role === UserRole.SUPER_ADMIN) {
-        // Super admin can see all SLAs
-      } else {
-        // Other roles can only see SLAs in their company
-        whereClause.companyId = req.user.companyId;
-      }
+      // Single-tenant: all users can see all SLAs
 
       // Apply search filter
       if (search) {
@@ -43,9 +37,6 @@ export class SLAController {
           take: limit,
           orderBy: { [sortBy]: sortOrder },
           include: {
-            company: {
-              select: { id: true, name: true },
-            },
             _count: {
               select: { tickets: true, slaTracking: true },
             },
@@ -83,9 +74,6 @@ export class SLAController {
       const sla = await prisma.sLA.findUnique({
         where: { id },
         include: {
-          company: {
-            select: { id: true, name: true },
-          },
           tickets: {
             select: { 
               id: true, 
@@ -122,10 +110,7 @@ export class SLAController {
         throw new NotFoundError('SLA not found');
       }
 
-      // Check access permissions
-      if (req.user.role !== UserRole.SUPER_ADMIN && sla.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Access denied to this SLA');
-      }
+      // Single-tenant: all authenticated users can access SLAs
 
       res.status(200).json({
         success: true,
@@ -160,21 +145,7 @@ export class SLAController {
         companyId,
       } = req.body;
 
-      // Validate company access
-      let targetCompanyId = companyId;
-      if (req.user.role === UserRole.CS_ADMIN) {
-        targetCompanyId = req.user.companyId; // CS Admin can only create SLAs for their company
-      }
-
-      if (targetCompanyId) {
-        const company = await prisma.company.findUnique({
-          where: { id: targetCompanyId },
-        });
-
-        if (!company) {
-          throw new ValidationError('Company not found');
-        }
-      }
+      // Single-tenant: no company validation needed
 
       const newSLA = await prisma.sLA.create({
         data: {
@@ -186,12 +157,6 @@ export class SLAController {
           resolutionTimeHours,
           businessHoursOnly,
           status: isActive ? 'ACTIVE' : 'INACTIVE',
-          companyId: targetCompanyId,
-        },
-        include: {
-          company: {
-            select: { id: true, name: true },
-          },
         },
       });
 
@@ -241,10 +206,7 @@ export class SLAController {
         throw new NotFoundError('SLA not found');
       }
 
-      // CS Admin can only update SLAs in their company
-      if (req.user.role === UserRole.CS_ADMIN && existingSLA.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Cannot update SLA from different company');
-      }
+      // Single-tenant: all admins can update SLAs
 
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
@@ -257,11 +219,7 @@ export class SLAController {
       const updatedSLA = await prisma.sLA.update({
         where: { id },
         data: updateData,
-        include: {
-          company: {
-            select: { id: true, name: true },
-          },
-        },
+
       });
 
       logger.info('SLA updated successfully', {
@@ -305,10 +263,7 @@ export class SLAController {
         throw new NotFoundError('SLA not found');
       }
 
-      // CS Admin can only delete SLAs in their company
-      if (req.user.role === UserRole.CS_ADMIN && existingSLA.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Cannot delete SLA from different company');
-      }
+      // Single-tenant: all admins can delete SLAs
 
       // Check if SLA is being used by tickets
       if (existingSLA._count.tickets > 0) {

@@ -22,13 +22,7 @@ export class ChannelController {
       
       let whereClause: any = {};
 
-      // Role-based access control
-      if (req.user.role === UserRole.SUPER_ADMIN) {
-        // Super admin can see all channels
-      } else {
-        // Other roles can only see channels in their company
-        whereClause.companyId = req.user.companyId;
-      }
+      // Single-tenant: all users can see all channels
 
       // Apply filters
       if (search) {
@@ -48,9 +42,6 @@ export class ChannelController {
           take: limit,
           orderBy: { [sortBy]: sortOrder },
           include: {
-            company: {
-              select: { id: true, name: true },
-            },
             _count: {
               select: { tickets: true, messages: true },
             },
@@ -88,9 +79,6 @@ export class ChannelController {
       const channel = await prisma.channel.findUnique({
         where: { id },
         include: {
-          company: {
-            select: { id: true, name: true },
-          },
           tickets: {
             select: { 
               id: true, 
@@ -123,10 +111,7 @@ export class ChannelController {
         throw new NotFoundError('Channel not found');
       }
 
-      // Check access permissions
-      if (req.user.role !== UserRole.SUPER_ADMIN && channel.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Access denied to this channel');
-      }
+      // Single-tenant: all authenticated users can access channels
 
       res.status(200).json({
         success: true,
@@ -156,21 +141,7 @@ export class ChannelController {
         companyId,
       } = req.body;
 
-      // Validate company access
-      let targetCompanyId = companyId;
-      if (req.user.role === UserRole.CS_ADMIN) {
-        targetCompanyId = req.user.companyId; // CS Admin can only create channels for their company
-      }
-
-      if (targetCompanyId) {
-        const company = await prisma.company.findUnique({
-          where: { id: targetCompanyId },
-        });
-
-        if (!company) {
-          throw new ValidationError('Company not found');
-        }
-      }
+      // Single-tenant: no company validation needed
 
       // Validate channel configuration based on type
       const validatedConfig = await validateChannelConfig(type, config);
@@ -180,12 +151,6 @@ export class ChannelController {
           name,
           type,
           config: validatedConfig,
-          companyId: targetCompanyId,
-        },
-        include: {
-          company: {
-            select: { id: true, name: true },
-          },
         },
       });
 
@@ -232,10 +197,7 @@ export class ChannelController {
         throw new NotFoundError('Channel not found');
       }
 
-      // CS Admin can only update channels in their company
-      if (req.user.role === UserRole.CS_ADMIN && existingChannel.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Cannot update channel from different company');
-      }
+      // Single-tenant: all admins can update channels
 
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
@@ -249,11 +211,7 @@ export class ChannelController {
       const updatedChannel = await prisma.channel.update({
         where: { id },
         data: updateData,
-        include: {
-          company: {
-            select: { id: true, name: true },
-          },
-        },
+
       });
 
       logger.info('Channel updated successfully', {
@@ -297,10 +255,7 @@ export class ChannelController {
         throw new NotFoundError('Channel not found');
       }
 
-      // CS Admin can only delete channels in their company
-      if (req.user.role === UserRole.CS_ADMIN && existingChannel.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Cannot delete channel from different company');
-      }
+      // Single-tenant: all admins can delete channels
 
       // Check if channel is being used
       if (existingChannel._count.tickets > 0 || existingChannel._count.messages > 0) {
@@ -341,10 +296,7 @@ export class ChannelController {
         throw new NotFoundError('Channel not found');
       }
 
-      // Check access permissions
-      if (req.user.role !== UserRole.SUPER_ADMIN && channel.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Access denied to this channel');
-      }
+      // Single-tenant: all authenticated users can test channels
 
       // Test connection based on channel type
       const testResult = await testChannelConnectionByType(channel.type, channel.config);

@@ -21,8 +21,8 @@ export class AuthController {
       const user = await prisma.user.findUnique({
         where: { email },
         include: {
-          company: {
-            select: { id: true, name: true },
+          role: {
+            select: { id: true, name: true, type: true },
           },
           department: {
             select: { id: true, name: true },
@@ -48,8 +48,7 @@ export class AuthController {
       const tokenPayload = {
         userId: user.id,
         email: user.email,
-        role: user.role,
-        companyId: user.companyId,
+        role: user.role.type,
       };
 
       const { accessToken, refreshToken, expiresIn } = JWTService.generateTokenPair(tokenPayload);
@@ -69,8 +68,7 @@ export class AuthController {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role,
-          companyId: user.companyId,
+          role: user.role.type,
           departmentId: user.departmentId || undefined,
         },
       };
@@ -101,15 +99,10 @@ export class AuthController {
       // Get user from database
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          status: true,
-          companyId: true,
-          departmentId: true,
+        include: {
+          role: {
+            select: { id: true, name: true, type: true },
+          },
         },
       });
 
@@ -125,8 +118,7 @@ export class AuthController {
       const tokenPayload = {
         userId: user.id,
         email: user.email,
-        role: user.role,
-        companyId: user.companyId,
+        role: user.role.type,
       };
 
       const tokens = JWTService.generateTokenPair(tokenPayload);
@@ -138,8 +130,7 @@ export class AuthController {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role,
-          companyId: user.companyId,
+          role: user.role.type,
           departmentId: user.departmentId || undefined,
         },
       };
@@ -162,22 +153,9 @@ export class AuthController {
 
       const user = await prisma.user.findUnique({
         where: { id: req.user.id },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          avatar: true,
-          role: true,
-          status: true,
-          companyId: true,
-          departmentId: true,
-          settings: true,
-          lastLoginAt: true,
-          createdAt: true,
-          company: {
-            select: { id: true, name: true },
+        include: {
+          role: {
+            select: { id: true, name: true, type: true },
           },
           department: {
             select: { id: true, name: true },

@@ -31,14 +31,15 @@ export class TicketController {
       let whereClause: any = {};
 
       // Role-based access control
-      if (req.user.role === UserRole.SUPER_ADMIN) {
-        // Super admin can see all tickets
-      } else if (req.user.role === UserRole.CS_ADMIN) {
-        // CS Admin can see all tickets in their company
-        whereClause.companyId = req.user.companyId;
+      if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.CS_ADMIN) {
+        // Super admin and CS Admin can see all tickets
+      } else if (req.user.role === UserRole.DEPARTMENT_HEAD) {
+        // Department head can see tickets in their department
+        if (req.user.departmentId) {
+          whereClause.departmentId = req.user.departmentId;
+        }
       } else {
         // CS Agent and CS Operation can see tickets in their department or assigned to them
-        whereClause.companyId = req.user.companyId;
         whereClause.OR = [
           { departmentId: req.user.departmentId },
           { assigneeId: req.user.id },
@@ -149,9 +150,7 @@ export class TicketController {
           creator: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
-          company: {
-            select: { id: true, name: true },
-          },
+
           department: {
             select: { id: true, name: true },
           },
@@ -186,15 +185,13 @@ export class TicketController {
         throw new NotFoundError('Ticket not found');
       }
 
-      // Check access permissions
-      const hasAccess = 
+      // Single-tenant: simplified access control
+      const hasAccess =
         req.user.role === UserRole.SUPER_ADMIN ||
-        (req.user.role === UserRole.CS_ADMIN && ticket.companyId === req.user.companyId) ||
-        (ticket.companyId === req.user.companyId && (
-          ticket.departmentId === req.user.departmentId ||
-          ticket.assigneeId === req.user.id ||
-          ticket.creatorId === req.user.id
-        ));
+        req.user.role === UserRole.CS_ADMIN ||
+        ticket.departmentId === req.user.departmentId ||
+        ticket.assigneeId === req.user.id ||
+        ticket.creatorId === req.user.id;
 
       if (!hasAccess) {
         throw new ForbiddenError('Access denied to this ticket');
@@ -238,9 +235,7 @@ export class TicketController {
         throw new ValidationError('Customer not found');
       }
 
-      if (req.user.role !== UserRole.SUPER_ADMIN && customer.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Customer does not belong to your company');
-      }
+      // Single-tenant: no company validation needed
 
       // Validate department
       const department = await prisma.department.findUnique({
@@ -249,10 +244,6 @@ export class TicketController {
 
       if (!department) {
         throw new ValidationError('Department not found');
-      }
-
-      if (req.user.role !== UserRole.SUPER_ADMIN && department.companyId !== req.user.companyId) {
-        throw new ForbiddenError('Department does not belong to your company');
       }
 
       // Generate ticket number

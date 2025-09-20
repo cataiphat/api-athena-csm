@@ -34,7 +34,6 @@ export const authenticate = async (
         firstName: 'Sample',
         lastName: 'User',
         role: UserRole.CS_ADMIN,
-        companyId: 'sample-company-id',
         departmentId: 'sample-department-id',
       };
       return next();
@@ -46,15 +45,10 @@ export const authenticate = async (
     // Get user from database
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        status: true,
-        companyId: true,
-        departmentId: true,
+      include: {
+        role: {
+          select: { id: true, name: true, type: true },
+        },
       },
     });
 
@@ -71,8 +65,7 @@ export const authenticate = async (
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role,
-      companyId: user.companyId,
+      role: user.role.type,
       departmentId: user.departmentId || undefined,
     };
 
@@ -110,7 +103,7 @@ export const authorize = (...roles: UserRole[]) => {
   };
 };
 
-// Middleware to check if user belongs to the same company
+// Middleware for basic authentication check (no longer needed for company access)
 export const checkCompanyAccess = (
   req: AuthenticatedRequest,
   res: Response,
@@ -120,18 +113,7 @@ export const checkCompanyAccess = (
     return next(new UnauthorizedError('Authentication required'));
   }
 
-  // Super admin can access all companies
-  if (req.user.role === UserRole.SUPER_ADMIN) {
-    return next();
-  }
-
-  // Extract company ID from request (params, body, or query)
-  const requestCompanyId = req.params.companyId || req.body.companyId || req.query.companyId;
-
-  if (requestCompanyId && requestCompanyId !== req.user.companyId) {
-    return next(new ForbiddenError('Access denied to this company'));
-  }
-
+  // In single-tenant architecture, all authenticated users have access
   next();
 };
 
@@ -145,7 +127,7 @@ export const checkDepartmentAccess = (
     return next(new UnauthorizedError('Authentication required'));
   }
 
-  // Super admin and CS admin can access all departments in their company
+  // Super admin and CS admin can access all departments
   if (req.user.role === UserRole.SUPER_ADMIN || req.user.role === UserRole.CS_ADMIN) {
     return next();
   }

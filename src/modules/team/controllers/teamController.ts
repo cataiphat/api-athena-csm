@@ -7,9 +7,9 @@ import { TeamService } from '../services/teamService';
 export class TeamController {
   static async getTeams(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
-      const result = await TeamService.getTeams(companyId, userId, role, req.query);
-      
+      const { id: userId, role } = req.user!;
+      const result = await TeamService.getTeams(userId, role, req.query);
+
       return res.json({
         success: true,
         message: 'Teams retrieved successfully',
@@ -22,9 +22,9 @@ export class TeamController {
 
   static async createTeam(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
-      const team = await TeamService.createTeam(req.body, companyId, userId, role);
-      
+      const { id: userId, role } = req.user!;
+      const team = await TeamService.createTeam(req.body, userId, role);
+
       return res.status(201).json({
         success: true,
         message: 'Team created successfully',
@@ -37,14 +37,14 @@ export class TeamController {
 
   static async getTeamById(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
+      const { id: userId, role } = req.user!;
       const { id: teamId } = req.params;
 
       if (!teamId) {
         throw new AppError('Team ID is required', 400);
       }
 
-      const team = await TeamService.getTeamById(teamId, companyId, userId, role);
+      const team = await TeamService.getTeamById(teamId, userId, role);
       
       return res.json({
         success: true,
@@ -58,14 +58,14 @@ export class TeamController {
 
   static async updateTeam(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
+      const { id: userId, role } = req.user!;
       const { id: teamId } = req.params;
 
       if (!teamId) {
         throw new AppError('Team ID is required', 400);
       }
 
-      const team = await TeamService.updateTeam(teamId, req.body, companyId, userId, role);
+      const team = await TeamService.updateTeam(teamId, req.body, userId, role);
       
       return res.json({
         success: true,
@@ -79,14 +79,14 @@ export class TeamController {
 
   static async deleteTeam(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
+      const { id: userId, role } = req.user!;
       const { id: teamId } = req.params;
 
       if (!teamId) {
         throw new AppError('Team ID is required', 400);
       }
 
-      await TeamService.deleteTeam(teamId, companyId, userId, role);
+      await TeamService.deleteTeam(teamId, userId, role);
       
       return res.json({
         success: true,
@@ -99,7 +99,7 @@ export class TeamController {
 
   static async addMembers(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
+      const { id: userId, role } = req.user!;
       const { id: teamId } = req.params;
       const { userIds } = req.body;
 
@@ -107,7 +107,7 @@ export class TeamController {
         throw new AppError('Team ID is required', 400);
       }
 
-      const result = await TeamService.addMembers(teamId, userIds, companyId, userId, role);
+      const result = await TeamService.addMembers(teamId, userIds, userId, role);
       
       return res.json({
         success: true,
@@ -121,7 +121,7 @@ export class TeamController {
 
   static async removeMembers(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
+      const { id: userId, role } = req.user!;
       const { id: teamId } = req.params;
       const { userIds } = req.body;
 
@@ -129,7 +129,7 @@ export class TeamController {
         throw new AppError('Team ID is required', 400);
       }
 
-      const result = await TeamService.removeMembers(teamId, userIds, companyId, userId, role);
+      const result = await TeamService.removeMembers(teamId, userIds, userId, role);
       
       return res.json({
         success: true,
@@ -143,8 +143,8 @@ export class TeamController {
 
   static async getTeamStats(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
-      const stats = await TeamService.getTeamStats(companyId, userId, role);
+      const { id: userId, role } = req.user!;
+      const stats = await TeamService.getTeamStats(userId, role);
       
       return res.json({
         success: true,
@@ -158,7 +158,7 @@ export class TeamController {
 
   static async updateWorkingHours(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { companyId, id: userId, role } = req.user!;
+      const { id: userId, role } = req.user!;
       const { id: teamId } = req.params;
       const { workingHours } = req.body;
 
@@ -168,9 +168,8 @@ export class TeamController {
 
       const team = await TeamService.updateTeam(
         teamId,
-        { workingHours }, 
-        companyId, 
-        userId, 
+        { workingHours },
+        userId,
         role
       );
       

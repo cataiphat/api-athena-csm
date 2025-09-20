@@ -13,7 +13,7 @@ import { requestLogger } from '@/shared/middleware/requestLogger';
 // Import routes
 import authRoutes from '@/modules/auth/routes/authRoutes';
 import userRoutes from '@/modules/user/routes/userRoutes';
-import companyRoutes from '@/modules/company/routes/companyRoutes';
+
 import departmentRoutes from '@/modules/department/routes/departmentRoutes';
 import teamRoutes from './modules/team/routes/teamRoutes';
 import ticketRoutes from '@/modules/ticket/routes/ticketRoutes';
@@ -67,7 +67,7 @@ const apiPrefix = `/api/${config.apiVersion}`;
 
 app.use(`${apiPrefix}/auth`, authRoutes);
 app.use(`${apiPrefix}/users`, userRoutes);
-app.use(`${apiPrefix}/companies`, companyRoutes);
+
 app.use(`${apiPrefix}/departments`, departmentRoutes);
 app.use(`${apiPrefix}/teams`, teamRoutes);
 app.use(`${apiPrefix}/tickets`, ticketRoutes);

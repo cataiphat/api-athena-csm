@@ -12,66 +12,68 @@ Dự án Module Chăm sóc Khách hàng (CMS) được phát triển bởi Công
 
 ## 2. KIẾN TRÚC HỆ THỐNG VÀ CẤU TRÚC TỔ CHỨC
 
-### 2.1. Kiến trúc Multi-tenant
-Hệ thống được thiết kế theo kiến trúc đa công ty (multi-tenant), trong đó mỗi công ty là một tenant riêng biệt với cơ cấu tổ chức độc lập.
+### 2.1. Kiến trúc Single-tenant
+Hệ thống được thiết kế theo kiến trúc đơn công ty (single-tenant), dành riêng cho một doanh nghiệp với cơ cấu tổ chức tập trung.
 
 ### 2.2. Cấu trúc Tổ chức
-Mỗi công ty trong hệ thống có một cấu trúc phân cấp rõ ràng:
-1. **Company (Công ty):** Tổ chức cao nhất.
-2. **Department (Phòng ban):** Các phòng ban trực thuộc công ty.
-3. **Team (Đội nhóm):** Các đội nhóm trong một phòng ban.
-4. **Team Lead & Agents:** Trưởng nhóm và các nhân viên trong một đội.
+Hệ thống có một cấu trúc phân cấp rõ ràng:
+1. **Department (Phòng ban):** Các phòng ban trong tổ chức.
+2. **Team (Đội nhóm):** Các đội nhóm trong một phòng ban.
+3. **Team Lead & Agents:** Trưởng nhóm và các nhân viên trong một đội.
 
-### 2.3. Quy trình Phân quyền và Thiết lập Ban đầu
-1. Khởi tạo Công ty: Hệ thống Athena tạo hồ sơ công ty mới cho khách hàng.
-1.1.	Hệ thống Athena tiếp nhận thông tin đăng ký và tạo mới Company Profile cho khách hàng.
-1.2.	Thực hiện setup các cấu hình không cố định như: Action Code, trạng thái hợp đồng, và các biến nghiệp vụ khác.
+### 2.3. Quy trình Thiết lập và Phân quyền
+1. Khởi tạo Hệ thống: Triển khai hệ thống Athena CMS cho doanh nghiệp.
+1.1.	Cài đặt và cấu hình hệ thống cho doanh nghiệp.
+1.2.	Thực hiện setup các cấu hình nghiệp vụ như: Action Code, trạng thái ticket, và các biến nghiệp vụ khác.
 
-2. 2.	Tạo tài khoản vận hành
-2.1.	Sau khi công ty được khởi tạo, hệ thống tạo tài khoản vận hành (Operation Account) dành cho đội ngũ nội bộ quản trị.
-2.2.	Các tài khoản này được cấp cho team vận hành để quản lý ban đầu.
+2. Tạo tài khoản quản trị
+2.1.	Tạo tài khoản Super Admin và CS Admin cho hệ thống.
+2.2.	Các tài khoản này được cấp cho team quản trị để quản lý toàn bộ hệ thống.
 
-3. 3.	Phân quyền tài khoản Agents
-3.1.	Dựa trên thông tin và yêu cầu phân quyền do khách hàng cung cấp, team vận hành sẽ khởi tạo tài khoản Agent cho công ty đó.
+3. Phân quyền tài khoản Agents
+3.1.	CS Admin khởi tạo tài khoản Agent theo cơ cấu tổ chức của doanh nghiệp.
 3.2.	Quyền hạn được gán theo vai trò cụ thể (Role/Permission).
 
-4. 4.	Cung cấp tài khoản cho khách hàng
+4. Tổ chức phòng ban (Department)
+4.1.	CS Admin tạo mới Department, chỉ định Head of Department.
+4.2.	Thêm các Agent vào từng phòng ban liên quan.
 
-4.1.	Tài khoản đã được khởi tạo sẽ được bàn giao cho khách hàng.
+5. Khởi tạo Team & khung giờ làm việc
+5.1.	CS Admin khởi tạo Team theo nghiệp vụ cụ thể.
+5.2.	Gán khung giờ làm việc (Working Shift/Business Hour) cho từng team.
 
-4.2.	CS Admin phía khách hàng tiếp tục thực hiện setup chi tiết về cơ cấu tổ chức của họ trên hệ thống.
-
-5. 5.	Tổ chức phòng ban (Department)
-5.1.	CS Admin tạo mới Department, chỉ định Head of Department.
-5.2.	Thêm các Agent vào từng phòng ban liên quan.
-
-6. 6.	Khởi tạo Team & khung giờ làm việc
-6.1.	CS Admin khởi tạo Team theo nghiệp vụ cụ thể.
-6.2.	Gán khung giờ làm việc (Working Shift/Business Hour) cho từng team.
-7.	Phân quyền báo cáo cho Agents
-7.1.	Tại danh sách Agents, CS Admin chỉ định quyền truy cập báo cáo.
-7.2.	Từ đó xác định Agent nào có thể xem được báo cáo tác nghiệp của các nhân viên liên quan.
+6. Phân quyền báo cáo cho Agents
+6.1.	Tại danh sách Agents, CS Admin chỉ định quyền truy cập báo cáo.
+6.2.	Từ đó xác định Agent nào có thể xem được báo cáo tác nghiệp của các nhân viên liên quan.
 
 
 ## 3. CÁC VAI TRÒ NGƯỜI DÙNG (ACTORS)
 
-Hệ thống có 4 vai trò người dùng với cấp độ quyền hạn khác nhau:
+Hệ thống có 6 vai trò người dùng với cấp độ quyền hạn khác nhau:
 
 ### 3.1. Super Admin
 - Người có quyền hạn cao nhất trên toàn bộ hệ thống.
-- Có thể xem toàn bộ thông tin, báo cáo từ tất cả các công ty khách hàng (tenants).
+- Có thể xem toàn bộ thông tin, báo cáo của hệ thống.
 
 ### 3.2. CS Admin
-- Quản trị viên cao nhất của một công ty cụ thể.
+- Quản trị viên cao nhất của hệ thống.
 - Quản lý tất cả các phòng ban, nhân viên, cấu hình các kênh tương tác và gán agents vào các kênh.
 
-### 3.3. CS Agent
-- Nhân viên tác nghiệp chính trên hệ thống.
-- Mỗi agent thuộc một phòng ban và có vai trò cụ thể trong phòng ban đó.
+### 3.3. Department Head
+- Trưởng phòng ban, quản lý một phòng ban cụ thể.
+- Có quyền quản lý các agent trong phòng ban của mình.
 
-### 3.4. CS Operation
+### 3.4. Team Leader
+- Trưởng nhóm, quản lý một team cụ thể.
+- Có quyền quản lý các thành viên trong team của mình.
+
+### 3.5. CS Agent
+- Nhân viên tác nghiệp chính trên hệ thống.
+- Mỗi agent thuộc một phòng ban và team cụ thể.
+
+### 3.6. CS Operation
 - Đội ngũ giám sát và vận hành hệ thống.
-- Quản lý các vấn đề như cước gọi và cung cấp hỗ trợ cấp 1 (LV1) cho khách hàng.
+- Quản lý các vấn đề vận hành và cung cấp hỗ trợ kỹ thuật.
 
 ## 4. CHỨC NĂNG CHÍNH CỦA HỆ THỐNG
 
@@ -110,8 +112,8 @@ Hệ thống có khả năng tự động tạo ticket từ các kênh tương t
 - Yêu cầu phi chức năng: Khởi tạo 100 tickets đồng thời; ticket phải được tạo trong vòng 5 giây sau khi cuộc gọi kết thúc
 
 #### 4.1.3. Danh sách và Chi tiết Ticket
-**Hiển thị Danh sách:** Cho phép người dùng trong 1 công ty thấy toàn bộ các tickets đang có. Ngoài ra bộ lọc, và tìm kiếm nhằm hỗ trợ người dùng trong quá trình tác nghiệp hiệu quả hơn
-**Đối tượng:** CS Agents, CS Admin, Agents
+**Hiển thị Danh sách:** Cho phép người dùng thấy toàn bộ các tickets đang có theo phân quyền. Ngoài ra bộ lọc, và tìm kiếm nhằm hỗ trợ người dùng trong quá trình tác nghiệp hiệu quả hơn
+**Đối tượng:** CS Agents, CS Admin, Department Head, Team Leader
 **Quy tắc nghiệp vụ:** 
 - Phân quyền hiển thị theo vai trò người dùng Hiện bảng danh sách các tickets thuộc công ty của agents đó. Super Admin: Hiện danh sách của tất cả công ty. 
 BR_01: Danh sách tickets hiện lên phải thuộc công ty của agents đó 

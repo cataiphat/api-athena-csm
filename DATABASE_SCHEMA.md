@@ -1,24 +1,31 @@
 # Database Schema Documentation
 
 ## Overview
-Athena Customer Service Management System - Complete database schema documentation for all models and their relationships.
+Athena Customer Service Management System - Single-tenant architecture database schema documentation for all models and their relationships.
+
+**Architecture:** Single-tenant (one database per company deployment)
+**Database:** MySQL
+**ORM:** Prisma
+
+## Architecture Notes
+
+### Single-Tenant Design
+- Each company deployment has its own separate database instance
+- No `companyId` fields needed - all data belongs to the single tenant
+- When deploying for a new company, clone the entire codebase and database
+- Complete isolation between different company instances
+- Simplified access control without company-level filtering
+
+### Key Changes from Multi-Tenant
+- Removed `Company` model entirely
+- Removed `companyId` foreign keys from all models
+- Simplified unique constraints (no longer need company-scoped uniqueness)
+- Streamlined authentication and authorization logic
+- Direct relationships without company-level indirection
 
 ## Core Models
 
-### 1. Company Model
-**Table:** `companies`
-- `id` (String, Primary Key): Unique company identifier
-- `name` (String): Company name
-- `domain` (String, Unique): Company domain for multi-tenancy
-- `settings` (Json, Optional): Company-specific settings
-- `isActive` (Boolean, Default: true): Company status
-- `createdAt` (DateTime): Creation timestamp
-- `updatedAt` (DateTime): Last update timestamp
-
-**Relations:**
-- One-to-many: Users, Departments, Teams, Channels, Customers, Tickets, SLAs, Roles, Notifications
-
-### 2. User Model
+### 1. User Model
 **Table:** `users`
 - `id` (String, Primary Key): Unique user identifier
 - `email` (String, Unique): User email address
@@ -28,7 +35,6 @@ Athena Customer Service Management System - Complete database schema documentati
 - `phone` (String, Optional): Phone number
 - `avatar` (String, Optional): Avatar URL
 - `status` (UserStatus, Default: ACTIVE): User status (ACTIVE, INACTIVE, SUSPENDED)
-- `companyId` (String, Foreign Key): Company reference
 - `departmentId` (String, Optional, Foreign Key): Department reference
 - `teamId` (String, Optional, Foreign Key): Team reference
 - `roleId` (String, Foreign Key): Role reference (Required)
@@ -39,45 +45,47 @@ Athena Customer Service Management System - Complete database schema documentati
 - `updatedAt` (DateTime): Last update timestamp
 
 **Relations:**
-- Many-to-one: Company, Department, Team, Role
+- Many-to-one: Department, Team, Role
 - One-to-one: Department (as head), Team (as leader)
 - One-to-many: Assigned Tickets, Created Tickets, Comments, Attachments, Channel Agents, Notifications
 
-### 3. Role Model
+### 2. Role Model
 **Table:** `roles`
 - `id` (String, Primary Key): Unique role identifier
-- `name` (String): Role name (e.g., "Department Manager", "Senior Agent")
+- `name` (String, Unique): Role name (e.g., "Department Manager", "Senior Agent")
 - `description` (String, Optional): Role description
 - `type` (UserRole): Built-in role type (SUPER_ADMIN, CS_ADMIN, DEPARTMENT_HEAD, TEAM_LEADER, CS_AGENT, CS_OPERATION)
-- `companyId` (String, Optional, Foreign Key): Company reference (null for built-in roles)
 - `isActive` (Boolean, Default: true): Role status
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
 
-**Constraints:**
-- Unique: [name, companyId] - Unique role name per company
-
 **Relations:**
-- Many-to-one: Company (optional)
 - One-to-many: Users, Role Permissions
 
-### 4. Permission Model
+### 3. Permission Model
 **Table:** `permissions`
 - `id` (String, Primary Key): Unique permission identifier
-- `name` (String, Unique): Permission name
+- `name` (String): Permission name (e.g., "create_ticket", "manage_users")
 - `description` (String, Optional): Permission description
-- `resource` (ResourceType): Resource type (USER, COMPANY, DEPARTMENT, TEAM, TICKET, etc.)
-- `action` (PermissionType): Action type (CREATE, READ, UPDATE, DELETE, MANAGE)
+- `resource` (ResourceType): Resource type (USER, DEPARTMENT, TEAM, TICKET, etc.)
+- `action` (PermissionType): Action type (CREATE, READ, UPDATE, DELETE, MANAGE, etc.)
+- `conditions` (Json, Optional): Additional conditions (e.g., own department only)
+- `isActive` (Boolean, Default: true): Permission status
 - `createdAt` (DateTime): Creation timestamp
+- `updatedAt` (DateTime): Last update timestamp
+
+**Constraints:**
+- Unique: [resource, action, name]
 
 **Relations:**
 - One-to-many: Role Permissions
 
-### 5. RolePermission Model
+### 4. RolePermission Model
 **Table:** `role_permissions`
 - `id` (String, Primary Key): Unique identifier
 - `roleId` (String, Foreign Key): Role reference
 - `permissionId` (String, Foreign Key): Permission reference
+- `conditions` (Json, Optional): Override or additional conditions
 - `createdAt` (DateTime): Creation timestamp
 
 **Constraints:**
@@ -88,32 +96,27 @@ Athena Customer Service Management System - Complete database schema documentati
 
 ## Organizational Models
 
-### 6. Department Model
+### 5. Department Model
 **Table:** `departments`
 - `id` (String, Primary Key): Unique department identifier
-- `name` (String): Department name
+- `name` (String, Unique): Department name
 - `description` (String, Optional): Department description
-- `companyId` (String, Foreign Key): Company reference
-- `headId` (String, Optional, Foreign Key): Department head user reference
+- `headId` (String, Optional, Unique, Foreign Key): Department head user reference
 - `isActive` (Boolean, Default: true): Department status
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
 
-**Constraints:**
-- Unique: [companyId, name] - Unique department name per company
-
 **Relations:**
-- Many-to-one: Company, Head (User)
+- Many-to-one: Head (User)
 - One-to-many: Users, Teams, Tickets, Channel Agents
 
-### 7. Team Model
+### 6. Team Model
 **Table:** `teams`
 - `id` (String, Primary Key): Unique team identifier
 - `name` (String): Team name
 - `description` (String, Optional): Team description
-- `companyId` (String, Foreign Key): Company reference
 - `departmentId` (String, Foreign Key): Department reference
-- `leaderId` (String, Optional, Foreign Key): Team leader user reference
+- `leaderId` (String, Optional, Unique, Foreign Key): Team leader user reference
 - `isActive` (Boolean, Default: true): Team status
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
@@ -122,10 +125,10 @@ Athena Customer Service Management System - Complete database schema documentati
 - Unique: [departmentId, name] - Unique team name per department
 
 **Relations:**
-- Many-to-one: Company, Department, Leader (User)
-- One-to-many: Users, Tickets, Working Hours, Channel Agents
+- Many-to-one: Department, Leader (User)
+- One-to-many: Users, Working Hours, Tickets, Channel Agents
 
-### 8. WorkingHours Model
+### 7. WorkingHours Model
 **Table:** `working_hours`
 - `id` (String, Primary Key): Unique identifier
 - `teamId` (String, Foreign Key): Team reference
@@ -144,30 +147,33 @@ Athena Customer Service Management System - Complete database schema documentati
 
 ## Customer & Ticket Models
 
-### 9. Customer Model
+### 8. Customer Model
 **Table:** `customers`
 - `id` (String, Primary Key): Unique customer identifier
-- `name` (String): Customer name
-- `email` (String, Optional): Customer email
+- `cif` (String, Unique): Customer Identification Number
+- `externalId` (String, Optional): External ID from providers (Facebook, Telegram, etc.)
+- `firstName` (String): Customer's first name
+- `lastName` (String): Customer's last name
 - `phone` (String, Optional): Customer phone
-- `companyId` (String, Foreign Key): Company reference
-- `metadata` (Json, Optional): Additional customer data
+- `email` (String, Optional): Customer email
+- `address` (String, Optional): Customer address
+- `idNumber` (String, Optional): ID number (CCCD/CMND)
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
 
 **Relations:**
-- Many-to-one: Company
 - One-to-many: Tickets, Channel Messages
 
-### 10. Ticket Model
+### 9. Ticket Model
 **Table:** `tickets`
 - `id` (String, Primary Key): Unique ticket identifier
 - `ticketNumber` (String, Unique): Human-readable ticket number
 - `title` (String): Ticket title
 - `description` (String): Ticket description
-- `status` (TicketStatus): Ticket status (WAIT, PROCESS, CLOSED, DONE, SLA_ROV, SLA_POV, CANCELLED)
-- `priority` (Priority): Ticket priority (LOW, MEDIUM, HIGH, URGENT)
-- `companyId` (String, Foreign Key): Company reference
+- `type` (TicketType): Ticket type (INQUIRY, COMPLAINT, REQUEST)
+- `priority` (TicketPriority, Default: MEDIUM): Ticket priority (LOW, MEDIUM, HIGH, URGENT)
+- `status` (TicketStatus, Default: WAIT): Ticket status (WAIT, PROCESS, CLOSED, DONE, SLA_ROV, SLA_POV, CANCELLED)
+- `source` (String): Source channel
 - `customerId` (String, Foreign Key): Customer reference
 - `creatorId` (String, Foreign Key): Creator user reference
 - `assigneeId` (String, Optional, Foreign Key): Assignee user reference
@@ -175,19 +181,20 @@ Athena Customer Service Management System - Complete database schema documentati
 - `teamId` (String, Optional, Foreign Key): Team reference
 - `channelId` (String, Optional, Foreign Key): Channel reference
 - `slaId` (String, Optional, Foreign Key): SLA reference
-- `dueDate` (DateTime, Optional): Ticket due date
+- `firstResponseAt` (DateTime, Optional): First response timestamp
 - `resolvedAt` (DateTime, Optional): Resolution timestamp
 - `closedAt` (DateTime, Optional): Closure timestamp
-- `tags` (String Array): Ticket tags
+- `dueDate` (DateTime, Optional): Ticket due date
+- `tags` (String, Optional): Comma-separated tags
 - `metadata` (Json, Optional): Additional ticket data
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
 
 **Relations:**
-- Many-to-one: Company, Customer, Creator (User), Assignee (User), Department, Team, Channel, SLA
-- One-to-many: Comments, Attachments, SLA Tracking, Notifications
+- Many-to-one: Customer, Creator (User), Assignee (User), Department, Team, Channel, SLA
+- One-to-many: Comments, Attachments, SLA Tracking
 
-### 11. TicketComment Model
+### 10. TicketComment Model
 **Table:** `ticket_comments`
 - `id` (String, Primary Key): Unique comment identifier
 - `content` (String): Comment content
@@ -201,7 +208,7 @@ Athena Customer Service Management System - Complete database schema documentati
 - Many-to-one: Ticket, Author (User)
 - One-to-many: Attachments
 
-### 12. Attachment Model
+### 11. Attachment Model
 **Table:** `attachments`
 - `id` (String, Primary Key): Unique attachment identifier
 - `fileName` (String): Original file name
@@ -219,25 +226,20 @@ Athena Customer Service Management System - Complete database schema documentati
 
 ## Channel & Communication Models
 
-### 13. Channel Model
+### 12. Channel Model
 **Table:** `channels`
 - `id` (String, Primary Key): Unique channel identifier
-- `name` (String): Channel name
-- `type` (ChannelType): Channel type (EMAIL, FACEBOOK, TELEGRAM, ZALO, WHATSAPP, WEBCHAT)
-- `companyId` (String, Foreign Key): Company reference
+- `name` (String, Unique): Channel name
+- `type` (ChannelType): Channel type (EMAIL, FACEBOOK, ZALO, TELEGRAM, DIRECT_CHAT, PHONE)
+- `status` (ChannelStatus, Default: ACTIVE): Channel status (ACTIVE, INACTIVE, ERROR)
 - `config` (Json): Channel configuration (API keys, tokens, etc.)
-- `isActive` (Boolean, Default: true): Channel status
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
 
-**Constraints:**
-- Unique: [companyId, name] - Unique channel name per company
-
 **Relations:**
-- Many-to-one: Company
 - One-to-many: Channel Agents, Channel Messages, Tickets
 
-### 14. ChannelAgent Model (Enhanced)
+### 13. ChannelAgent Model
 **Table:** `channel_agents`
 - `id` (String, Primary Key): Unique identifier
 - `channelId` (String, Foreign Key): Channel reference
@@ -256,7 +258,7 @@ Athena Customer Service Management System - Complete database schema documentati
 **Relations:**
 - Many-to-one: Channel, User (optional), Department (optional), Team (optional)
 
-### 15. ChannelMessage Model
+### 14. ChannelMessage Model
 **Table:** `channel_messages`
 - `id` (String, Primary Key): Unique message identifier
 - `externalId` (String, Optional): ID from external platform
@@ -270,37 +272,38 @@ Athena Customer Service Management System - Complete database schema documentati
 - `createdAt` (DateTime): Creation timestamp
 
 **Relations:**
-- Many-to-one: Channel, Customer (optional), Ticket (optional)
+- Many-to-one: Channel, Customer (optional)
 
 ## SLA & Notification Models
 
-### 16. SLA Model
+### 15. SLA Model
 **Table:** `slas`
 - `id` (String, Primary Key): Unique SLA identifier
-- `name` (String): SLA name
+- `name` (String, Unique): SLA name
 - `description` (String, Optional): SLA description
-- `companyId` (String, Foreign Key): Company reference
-- `responseTime` (Integer): Response time in minutes
-- `resolutionTime` (Integer): Resolution time in minutes
-- `priority` (Priority): SLA priority level
-- `isActive` (Boolean, Default: true): SLA status
+- `ticketType` (TicketType): Ticket type for this SLA
+- `priority` (TicketPriority): SLA priority level
+- `firstResponseTimeHours` (Integer): First response time in hours
+- `resolutionTimeHours` (Integer): Resolution time in hours
+- `businessHoursOnly` (Boolean, Default: true): Apply SLA only during business hours
+- `status` (SLAStatus, Default: ACTIVE): SLA status
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
 
 **Relations:**
-- Many-to-one: Company
 - One-to-many: Tickets, SLA Tracking
 
-### 17. SLATracking Model
+### 16. SLATracking Model
 **Table:** `sla_tracking`
 - `id` (String, Primary Key): Unique tracking identifier
 - `ticketId` (String, Foreign Key): Ticket reference
 - `slaId` (String, Foreign Key): SLA reference
-- `responseDeadline` (DateTime): Response deadline
-- `resolutionDeadline` (DateTime): Resolution deadline
-- `respondedAt` (DateTime, Optional): Response timestamp
+- `firstResponseDue` (DateTime): First response deadline
+- `resolutionDue` (DateTime): Resolution deadline
+- `firstResponseAt` (DateTime, Optional): First response timestamp
 - `resolvedAt` (DateTime, Optional): Resolution timestamp
-- `status` (SLAStatus): SLA status (PENDING, MET, BREACHED)
+- `firstResponseBreach` (Boolean, Default: false): First response SLA breached
+- `resolutionBreach` (Boolean, Default: false): Resolution SLA breached
 - `createdAt` (DateTime): Creation timestamp
 - `updatedAt` (DateTime): Last update timestamp
 
@@ -310,21 +313,34 @@ Athena Customer Service Management System - Complete database schema documentati
 **Relations:**
 - Many-to-one: Ticket, SLA
 
-### 18. Notification Model
+### 17. Notification Model
 **Table:** `notifications`
 - `id` (String, Primary Key): Unique notification identifier
 - `title` (String): Notification title
 - `message` (String): Notification message
-- `type` (NotificationType): Notification type (TICKET_ASSIGNED, SLA_WARNING, etc.)
-- `companyId` (String, Foreign Key): Company reference
+- `type` (String): Notification type (e.g., sla_violation, ticket_assigned)
 - `userId` (String, Foreign Key): Target user reference
 - `ticketId` (String, Optional, Foreign Key): Related ticket reference
 - `isRead` (Boolean, Default: false): Read status
 - `metadata` (Json, Optional): Additional notification data
 - `createdAt` (DateTime): Creation timestamp
+- `readAt` (DateTime, Optional): Read timestamp
 
 **Relations:**
-- Many-to-one: Company, User, Ticket (optional)
+- Many-to-one: User
+
+## System Models
+
+### 18. AuditLog Model
+**Table:** `audit_logs`
+- `id` (String, Primary Key): Unique log identifier
+- `action` (String): Action performed (CREATE, UPDATE, DELETE)
+- `entity` (String): Entity affected (TICKET, USER, etc.)
+- `entityId` (String): ID of the affected entity
+- `userId` (String, Optional): User who performed the action
+- `changes` (Json, Optional): Details of what changed
+- `metadata` (Json, Optional): Additional context
+- `createdAt` (DateTime): Creation timestamp
 
 ## Enums
 
@@ -341,16 +357,21 @@ Athena Customer Service Management System - Complete database schema documentati
 - `INACTIVE`: Inactive user
 - `SUSPENDED`: Suspended user
 
-### TicketStatus (Optimized)
+### TicketStatus
 - `WAIT`: Waiting for processing
 - `PROCESS`: Being processed
 - `CLOSED`: Closed ticket
 - `DONE`: Completed ticket
-- `SLA_ROV`: SLA response overdue
-- `SLA_POV`: SLA resolution overdue
+- `SLA_ROV`: SLA Risk of Violation
+- `SLA_POV`: SLA Point of Violation
 - `CANCELLED`: Cancelled ticket
 
-### Priority
+### TicketType
+- `INQUIRY`: Inquiry ticket
+- `COMPLAINT`: Complaint ticket
+- `REQUEST`: Request ticket
+
+### TicketPriority
 - `LOW`: Low priority
 - `MEDIUM`: Medium priority
 - `HIGH`: High priority
@@ -359,21 +380,24 @@ Athena Customer Service Management System - Complete database schema documentati
 ### ChannelType
 - `EMAIL`: Email channel
 - `FACEBOOK`: Facebook channel
-- `TELEGRAM`: Telegram channel
 - `ZALO`: Zalo channel
-- `WHATSAPP`: WhatsApp channel
-- `WEBCHAT`: Web chat channel
+- `TELEGRAM`: Telegram channel
+- `DIRECT_CHAT`: Direct chat channel
+- `PHONE`: Phone channel
 
-### AttachmentType
-- `IMAGE`: Image files
-- `DOCUMENT`: Document files
-- `VIDEO`: Video files
-- `AUDIO`: Audio files
-- `OTHER`: Other file types
+### PermissionType
+- `CREATE`: Create permission
+- `READ`: Read permission
+- `UPDATE`: Update permission
+- `DELETE`: Delete permission
+- `ASSIGN`: Assign permission
+- `APPROVE`: Approve permission
+- `EXPORT`: Export permission
+- `IMPORT`: Import permission
+- `MANAGE`: Full management permission
 
 ### ResourceType
 - `USER`: User resource
-- `COMPANY`: Company resource
 - `DEPARTMENT`: Department resource
 - `TEAM`: Team resource
 - `TICKET`: Ticket resource
@@ -384,21 +408,64 @@ Athena Customer Service Management System - Complete database schema documentati
 - `REPORT`: Report resource
 - `PERMISSION`: Permission resource
 
-### PermissionType
-- `CREATE`: Create permission
-- `READ`: Read permission
-- `UPDATE`: Update permission
-- `DELETE`: Delete permission
-- `MANAGE`: Full management permission
+### AttachmentType
+- `IMAGE`: Image files
+- `DOCUMENT`: Document files
+- `VIDEO`: Video files
+- `AUDIO`: Audio files
+- `OTHER`: Other file types
 
-### NotificationType
-- `TICKET_ASSIGNED`: Ticket assignment notification
-- `TICKET_UPDATED`: Ticket update notification
-- `SLA_WARNING`: SLA warning notification
-- `SLA_BREACH`: SLA breach notification
-- `COMMENT_ADDED`: Comment added notification
+### ChannelStatus
+- `ACTIVE`: Active channel
+- `INACTIVE`: Inactive channel
+- `ERROR`: Channel has an error
 
 ### SLAStatus
-- `PENDING`: SLA pending
-- `MET`: SLA met
-- `BREACHED`: SLA breached
+- `ACTIVE`: Active SLA
+- `INACTIVE`: Inactive SLA
+
+## Database Optimization
+
+### Indexes
+The following indexes are automatically created by Prisma:
+
+**Primary Keys:**
+- All models have `id` field as primary key with CUID
+
+**Unique Constraints:**
+- `users.email` - Unique email addresses
+- `departments.name` - Unique department names
+- `teams.[departmentId, name]` - Unique team names per department
+- `roles.name` - Unique role names
+- `customers.cif` - Unique customer identification numbers
+- `tickets.ticketNumber` - Unique ticket numbers
+- `channels.name` - Unique channel names
+- `slas.name` - Unique SLA names
+
+**Foreign Key Indexes:**
+- Automatically created for all foreign key relationships
+- Improves JOIN performance and referential integrity
+
+### Performance Considerations
+
+**Query Optimization:**
+- Use `select` to limit returned fields
+- Use `include` judiciously to avoid N+1 queries
+- Implement pagination for large datasets
+- Use database-level filtering instead of application-level
+
+**Connection Management:**
+- Use connection pooling
+- Monitor connection usage
+- Implement proper connection cleanup
+
+**Monitoring:**
+- Track slow queries
+- Monitor database performance metrics
+- Regular maintenance and optimization
+
+### Backup Strategy
+- Regular automated backups
+- Point-in-time recovery capability
+- Test backup restoration procedures
+- Separate backup storage location
